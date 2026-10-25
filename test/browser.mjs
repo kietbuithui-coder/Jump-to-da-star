@@ -382,6 +382,22 @@ check('flying for 20 s keeps the simulation stable and the score moving', () => 
   return `${Math.round(g.score.metres)} m, state ${g.state}, ${g.particles.count} particles`;
 });
 
+check('right mouse button fires the character skill', () => {
+  const g = window.JTTS.game;
+  g.player.energy = g.player.energyMax;
+  g.player.skillCooldown = 0;
+  const before = g.player.energy;
+  const down = new window.MouseEvent('mousedown', { bubbles: true, button: 2 });
+  window.dispatchEvent(down);
+  tick(8);
+  const spent = before - g.player.energy;
+  window.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true, button: 2 }));
+  tick(2);
+  if (spent <= 0) throw new Error(`right-click spent ${spent} energy (skill did not fire)`);
+  if (window.JTTS.input.isDown('skill')) throw new Error('skill stuck on after mouseup');
+  return `spent ${spent.toFixed(0)} energy, released cleanly`;
+});
+
 check('escape pauses, escape resumes', () => {
   const g = window.JTTS.game;
   key('Escape');

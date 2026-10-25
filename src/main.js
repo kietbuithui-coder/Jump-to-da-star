@@ -771,6 +771,20 @@ function bindInput() {
 
   $('#pauseBtn').addEventListener('click', () => pauseGame());
 
+  // Right mouse button = character skill (works held, like Shift).
+  window.addEventListener('mousedown', (e) => {
+    if (e.button !== 2 || uiState.screen) return;
+    e.preventDefault();
+    audio.unlock();
+    input.setVirtual('skill', true);
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 2) input.setVirtual('skill', false);
+  });
+  window.addEventListener('contextmenu', (e) => {
+    if (!uiState.screen) e.preventDefault();
+  });
+
   for (const btn of $$('[data-touch]')) {
     const action = btn.dataset.touch;
     const down = (e) => {

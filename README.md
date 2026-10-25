@@ -30,8 +30,9 @@ browser window by me** — open it and tell me what breaks.
 | Launch / charge catapult | hold `Space`, release in the **42–62 %** window for a perfect launch | hold **JUMP** | — |
 | Boost (3 charges at launch, capacity 5–6 with unlocks) | `Space` in the air | **BOOST** | right-click |
 | Steer | `A` / `D` or `←` / `→` | left thumb pads | — |
-| Character skill | `Shift` | **SKILL** | — |
+| Character skill | `Shift` (hold-skills can be held) | **SKILL** | right-click (hold) |
 | Pause | `Esc` / `P` | ⏸ button | — |
+| Mute | `M` | — | — |
 
 Input is buffered for 140 ms, so a press slightly before the boost lockout ends still fires.
 Boost priority: **up, then right** — it is a rescue tool first.
@@ -150,7 +151,7 @@ through **jsdom** with a stubbed 2D context and stubbed `AudioContext`.
 
 ```bash
 node test/run.mjs        # 55/55 passed
-node test/browser.mjs    # 14/14 passed
+node test/browser.mjs    # 15/15 passed
 ```
 
 ### `test/run.mjs` — 55 checks, 55 passing
@@ -180,13 +181,13 @@ node test/browser.mjs    # 14/14 passed
   50/50 survived.
 * A pilot who presses *nothing at all* still travels **~3.6–4.0 km** in 70 s on the real game loop.
 
-### `test/browser.mjs` — 14 checks, 14 passing
+### `test/browser.mjs` — 15 checks, 15 passing
 
 Loads the real `index.html` in jsdom, boots the real `src/main.js`, and drives the real UI:
 menu → characters → upgrades → records → settings → menu routing; character cards (locked pilots
 refused, paid unlocks work, reselect works); upgrade lab (cannot buy without coins, purchase
 deducts and persists); settings sliders persist; PLAY starts a run and the launch fires; 20 s of
-flight stays finite and scores; `Esc` pauses and resumes with the simulation frozen; death writes
+flight stays finite and scores; right-click fires the skill and releases cleanly; `Esc` pauses and resumes with the simulation frozen; death writes
 coins, records, history and the save, and shows the game-over screen; a fresh `SaveStore` reloads
 that save intact; quality switching re-renders; no uncaught errors.
 

@@ -18,6 +18,9 @@ npm start           # → http://localhost:8080  (binds 0.0.0.0, so phones on th
 Any static file server works (`python3 -m http.server`), but **it must be HTTP** — the game is
 plain ES modules and browsers refuse `file://` module imports.
 
+In-game: press **`F`** or tap the **⛶** button to go fullscreen (on phones it also asks for landscape
+lock). The HUD reserves that button column, so the coin pill and boost stars never draw underneath it.
+
 Tested in: headless Node 22 (see the honest test report below). **Not yet launched in a real
 browser window by me** — open it and tell me what breaks.
 
@@ -33,6 +36,7 @@ browser window by me** — open it and tell me what breaks.
 | Character skill | `Shift` (hold-skills can be held) | **SKILL** | right-click (hold) |
 | Pause | `Esc` / `P` | ⏸ button | — |
 | Mute | `M` | — | — |
+| Fullscreen | `F` or ⛶ button | ⛶ button | ⛶ button |
 
 Input is buffered for 140 ms, so a press slightly before the boost lockout ends still fires.
 Boost priority: **up, then right** — it is a rescue tool first.

@@ -122,7 +122,7 @@ export function renderScene(ctx, game, cssW, cssH, now, quality = 'balanced', op
     const dead = game.state === 'dead';
     ctx.save();
     ctx.globalAlpha = dead ? 0.25 : 1;
-    drawTopHUD(ctx, game, cssW, cssH, t);
+    drawTopHUD(ctx, game, cssW, cssH, t, opts.hudInset || 0);
     drawBottomHUD(ctx, game, cssW, cssH, t, opts.touchMode);
     drawMinimap(ctx, game, cssW, cssH, t);
     ctx.restore();

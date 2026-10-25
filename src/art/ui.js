@@ -28,11 +28,13 @@ function panel(ctx, x, y, w, h, opts = {}) {
   }
 }
 
-export function drawTopHUD(ctx, game, w, h, t) {
+export function drawTopHUD(ctx, game, w, h, t, hudInset = 0) {
   const p = game.player;
   const s = game.score;
   const compact = w < 760;
   const pad = compact ? 12 : 20;
+  // keep the right-hand pills clear of the DOM overlay buttons (pause/fullscreen)
+  const rpad = pad + hudInset;
 
   // distance block
   const dw = compact ? 186 : 240;
@@ -66,20 +68,20 @@ export function drawTopHUD(ctx, game, w, h, t) {
 
   // coins + boosts (right)
   const cw = compact ? 92 : 112;
-  panel(ctx, w - pad - cw, pad, cw, compact ? 34 : 38, { fill: 'rgba(20,10,40,0.72)', r: 12 });
+  panel(ctx, w - rpad - cw, pad, cw, compact ? 34 : 38, { fill: 'rgba(20,10,40,0.72)', r: 12 });
   ctx.save();
-  ctx.translate(w - pad - cw + 22, pad + (compact ? 17 : 19));
+  ctx.translate(w - rpad - cw + 22, pad + (compact ? 17 : 19));
   ctx.scale(0.72, 0.72);
   // coin icon
   inked(ctx, () => ellipse(ctx, 0, 0, 15, 15), linear(ctx, -12, -14, 12, 14, [[0, '#fff3a8'], [0.6, '#ffd93b'], [1, '#e8a30d']]), { stroke: '#7a4b0a', width: 3 });
   fillPath(ctx, () => starPath(ctx, 0, 0, 7, 0), '#a86e0a', 0.7);
   ctx.restore();
-  bigText(ctx, `${s.coins}`, w - pad - cw + 42, pad + (compact ? 17 : 19), compact ? 16 : 18, '#ffe86b', {
+  bigText(ctx, `${s.coins}`, w - rpad - cw + 42, pad + (compact ? 17 : 19), compact ? 16 : 18, '#ffe86b', {
     align: 'left', stroke: PAL.ink, strokeWidth: 3,
   });
 
   // boost stars
-  const bx = w - pad - (compact ? 126 : 150);
+  const bx = w - rpad - (compact ? 126 : 150);
   const by = pad + (compact ? 52 : 60);
   for (let i = 0; i < p.maxBoosts; i++) {
     const filled = i < p.boosts;

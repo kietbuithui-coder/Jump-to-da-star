@@ -702,6 +702,39 @@ function handleGameOver(summary) {
   $('#pauseBtn').classList.remove('is-on');
 }
 
+function toggleFullscreen() {
+  const doc = document;
+  const root = doc.documentElement;
+  const isFull = () => doc.fullscreenElement || doc.webkitFullscreenElement;
+  audio.unlock();
+  if (!isFull()) {
+    const request = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (request) {
+      try {
+        const p = request.call(root, { navigationUI: 'hide' });
+        if (p && p.catch) p.catch(() => {});
+      } catch (_) {}
+    }
+    const orient = window.screen && window.screen.orientation;
+    if (orient && orient.lock) {
+      try {
+        const p = orient.lock('landscape');
+        if (p && p.catch) p.catch(() => {});
+      } catch (_) {}
+    }
+    toast('FULLSCREEN — F hoặc ⛶ để thoát', 1500);
+  } else {
+    const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+    if (exit) {
+      try {
+        const p = exit.call(doc);
+        if (p && p.catch) p.catch(() => {});
+      } catch (_) {}
+    }
+  }
+  setTimeout(resize, 260);
+}
+
 function pauseGame() {
   if (uiState.screen || !game.isRunning()) return;
   game.pause();
@@ -763,6 +796,10 @@ function bindInput() {
       else if (uiState.screen === 'menu') startRun();
       else if (uiState.screen === null && game.state === 'launch') game.fireLaunch();
     }
+    if (e.code === 'KeyF') {
+      toggleFullscreen();
+      e.preventDefault();
+    }
     if (e.code === 'KeyM' && !uiState.screen) {
       audio.setMuted(!audio.muted);
       toast(audio.muted ? 'SOUND MUTED' : 'SOUND ON', 900);
@@ -770,6 +807,10 @@ function bindInput() {
   });
 
   $('#pauseBtn').addEventListener('click', () => pauseGame());
+
+  // ---- fullscreen: the same button works on desktop and on phones,
+  // where it also tries to lock landscape (best effort, some browsers refuse).
+  $('#fsBtn').addEventListener('click', () => toggleFullscreen());
 
   // Right mouse button = character skill (works held, like Shift).
   window.addEventListener('mousedown', (e) => {
@@ -894,7 +935,9 @@ const loop = new Loop({
     } else {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const touchMode = $('#touchControls').classList.contains('is-on');
-      renderScene(ctx, game, cssW, cssH, t, save.data.settings.quality, { touchMode });
+      // the pause + fullscreen buttons live in that column: don't draw under them
+      const hudInset = 62;
+      renderScene(ctx, game, cssW, cssH, t, save.data.settings.quality, { touchMode, hudInset });
     }
     $('#fpsReadout').textContent = `${Math.round(loop.fps)} fps`;
   },

@@ -361,8 +361,18 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   cursor: pointer; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px);
 }
 .pause-fab.is-on { display: flex; }
+.fs-fab {
+  position: absolute; top: 66px; right: 14px; z-index: 7; width: 46px; height: 46px; border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.18); background: rgba(20, 10, 40, 0.5); color: rgba(255, 255, 255, 0.8);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px;
+  backdrop-filter: blur(4px); opacity: 0.55; transition: opacity 0.15s ease;
+}
+.fs-fab:hover, .fs-fab:focus-visible { opacity: 1; }
+@media (pointer: coarse) {
+  .fs-fab { width: 40px; height: 40px; top: 62px; right: 12px; opacity: 0.8; }
+}
 .fps-readout {
-  position: absolute; top: 66px; right: 16px; z-index: 6; font-size: 11px; font-weight: 900;
+  position: absolute; top: 118px; right: 16px; z-index: 6; font-size: 11px; font-weight: 900;
   color: #9ff7a0; background: rgba(0, 0, 0, 0.4); padding: 3px 8px; border-radius: 8px; display: none;
 }
 .fps-readout.is-on { display: block; }

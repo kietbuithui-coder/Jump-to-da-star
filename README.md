@@ -33,7 +33,7 @@ browser window by me** — open it and tell me what breaks.
 | Character skill | `Shift` | **SKILL** | — |
 | Pause | `Esc` / `P` | ⏸ button | — |
 
-Input is buffered for 120 ms, so a press slightly before the boost lockout ends still fires.
+Input is buffered for 140 ms, so a press slightly before the boost lockout ends still fires.
 Boost priority: **up, then right** — it is a rescue tool first.
 
 ---

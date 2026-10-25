@@ -36,6 +36,7 @@
         <div class="chip"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="#ffd93b" stroke="#7a4b0a" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="#a86e0a" stroke-width="2"/></svg><span id="menuCoins">0</span> STAR COINS</div>
         <div class="chip">BEST <b id="menuBest">0 m</b></div>
         <div class="chip chip--pilot" id="menuPilot">PROFESSOR FROG</div>
+        <button class="chip chip--btn" data-action="fullscreen" title="Fullscreen (F)">⛶ FULLSCREEN</button>
       </div>
     </div>
     <p class="credits">Procedural art · procedural audio · zero downloads · works offline once loaded</p>
@@ -113,6 +114,12 @@
       <label class="slider-row">MASTER <input type="range" id="setMaster" min="0" max="100" /><output id="outMaster">80%</output></label>
       <label class="slider-row">MUSIC <input type="range" id="setMusic" min="0" max="100" /><output id="outMusic">55%</output></label>
       <label class="slider-row">SFX <input type="range" id="setSfx" min="0" max="100" /><output id="outSfx">85%</output></label>
+      <div class="settings-row">
+        <span>VIEW</span>
+        <div class="segmented" id="setView">
+          <button data-v="normal">NORMAL</button><button data-v="wide">WIDE</button><button data-v="ultra">ULTRA 0.5×</button>
+        </div>
+      </div>
       <div class="settings-row">
         <span>GRAPHICS</span>
         <div class="segmented" id="setQuality">

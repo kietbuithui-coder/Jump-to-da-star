@@ -18,8 +18,13 @@ npm start           # → http://localhost:8080  (binds 0.0.0.0, so phones on th
 Any static file server works (`python3 -m http.server`), but **it must be HTTP** — the game is
 plain ES modules and browsers refuse `file://` module imports.
 
-In-game: press **`F`** or tap the **⛶** button to go fullscreen (on phones it also asks for landscape
-lock). The HUD reserves that button column, so the coin pill and boost stars never draw underneath it.
+In-game: press **`F`** or tap the **⛶** button — there is also a **⛶ FULLSCREEN** row in the main menu.
+On phones it also requests a landscape lock. The HUD reserves that button column, so the coin pill
+and boost stars never draw underneath it.
+
+**See further:** the camera has three view distances — Normal (1×), Wide (0.72×) and **Ultra (0.5×)**.
+Ultra shows ~2 960 world-px across a 1600px screen (about two hops ahead). Cycle live with **`Z`** or
+pick one in SETTINGS → VIEW (default: Wide).
 
 Tested in: headless Node 22 (see the honest test report below). **Not yet launched in a real
 browser window by me** — open it and tell me what breaks.
@@ -36,7 +41,8 @@ browser window by me** — open it and tell me what breaks.
 | Character skill | `Shift` (hold-skills can be held) | **SKILL** | right-click (hold) |
 | Pause | `Esc` / `P` | ⏸ button | — |
 | Mute | `M` | — | — |
-| Fullscreen | `F` or ⛶ button | ⛶ button | ⛶ button |
+| Fullscreen | `F` or ⛶ button (also in the menu) | ⛶ button | ⛶ button |
+| View distance | `Z` cycles Normal → Wide → Ultra 0.5× | SETTINGS → VIEW | SETTINGS → VIEW |
 
 Input is buffered for 140 ms, so a press slightly before the boost lockout ends still fires.
 Boost priority: **up, then right** — it is a rescue tool first.
@@ -102,9 +108,16 @@ Density also falls off with distance: **≈ 0.032 items/m** in the first 500 m v
 past 10 km (measured). The map is generated in chunks, streamed ahead of the camera and recycled
 behind it (measured steady state: **45–112 live entities, 5 resident chunks** over 40 km).
 
-**Fairness is structural, not luck.** Every hop between pads gets a rescue net that spans the
-whole gap, so a mistimed arc lands on a net (energy + combo penalty) instead of ending the run.
-The generator validates each hop with the same bounce maths the player uses.
+**A missed hop is a real death.** There are no safety nets (they were removed on request — they felt
+like a bug). What keeps the map honest instead: every pad is placed on the *descending* crossing of
+the previous pad's real bounce arc, with the same maths the player uses, so a reachable line always
+exists. The reference pilot proves it: **25/25 routes to 10 km** and a deeper sweep of **50/50 routes
+to 20 km** using only steering + three boosts (no skills, no upgrades).
+
+**The sky is open.** The corridor breathes ±1 000 px, and roughly 40 % of hops carry a **sky shelf**:
+premium loot (boost star, super energy, magnet, coffee, balloon, chute) parked 620–1 100 px above the
+route, past the reach of any normal bounce. Every shelf ships with a thermal column (or a near-vertical
+jet gate) that can actually lift you there — the test checks the climb against the lift, not "looks fine".
 
 ---
 
@@ -142,8 +155,14 @@ tools/render.mjs            offline art preview renderer (@napi-rs/canvas)
 
 Engine facts: fixed **1/120 s** timestep decoupled from render rate, object pooling for particles
 and floaters, chunk load/unload, adaptive quality (Low / Balanced / High + auto-degrade when FPS
-drops below 45), DPR-aware canvas sizing, all audio synthesised with WebAudio (BGM state machines +
-pooled SFX) and unlocked on the first user gesture.
+drops below 45), DPR-aware canvas sizing, all audio synthesised with WebAudio and unlocked on the
+first user gesture.
+
+**Music:** `src/game/music.js` is a small pure-function sequencer; `src/game/audio.js` turns its
+events into sound. Four tracks: **menu = electric EDM, 128 BPM** (four-on-the-floor kick, claps on
+2 & 4, offbeat supersaw stabs, rolling 16th bass with a sidechain pump, arpeggio lead, riser + impact
+every 8 bars, 15.00 s loop), launch 132, flight 138 (adds layers as your combo climbs), game-over 96
+(half-time pad + plucks).
 
 ---
 
@@ -164,7 +183,9 @@ node test/browser.mjs    # 15/15 passed
 | --- | --- |
 | physics (4) | gravity always pulls and is capped at terminal velocity; drag only above the floor and never reverses direction; a 3000 px/s pass through a pad is caught by swept collision; 60 s of extreme inputs stays finite and clamped |
 | pads (3) | pads are one-way (land on the face, pass from behind); 50 chained bounces never exceed the velocity cap; the bounce stat changes the arc |
-| world generation (6) | all 20 object kinds appear; chunks are contiguous; the hazard floor stays inside its band across 5 seeds × 30 km; **every hop gap is spanned by a net** (114/114 gaps); loot density falls with distance; entity count stays flat over 40 km |
+| world generation (7) | all 19 object kinds appear and **zero rescue pads spawn**; chunks are contiguous; the hazard floor stays inside its band across 5 seeds × 30 km; sky shelves are >600 px above the line and inside thermal reach (measured against the physics); pad-to-pad climbs and gaps stay inside the reachable envelope; loot density falls with distance (0.0367 → 0.0224 items/m); entity count stays flat over 40 km |
+| camera view (3) | wide/ultra show more world than normal (1 480 / 2 056 / 2 960 world-px), ultra is exactly 0.5×, switching is live, and the corridor fits on screen |
+| music (4) | the menu loop is 128 BPM with exactly 4 kicks and 2 claps per bar, 4 offbeat stabs, a lead and a riser over a 15 s loop; all 912 events across 4 tracks are finite and in range; the engine really schedules (44 oscillators + 24 percussion in 2 s of menu); scene changes swap tracks and stop cleanly |
 | items (5) | each pickup fires exactly once and cannot be farmed; buffs measurably change the flight model; jet gates and UFOs apply their impulse/ride; zones lift; hazards drain energy and grant i-frames; no object kind is decorative |
 | characters & skills (4) | 5 distinct stat blocks and 5 distinct skills; every skill spends energy and changes flight state (cheesus proved via magnet pulling loot closer); hold skills burn over time; error-404 cycles POWER→CONTROL→RECOVERY deterministically |
 | boost (3) | 3 charges, lockout, hard stop at zero; a 2400 px/s fall is reversed; boost stars refill but never exceed the cap |
@@ -179,11 +200,12 @@ node test/browser.mjs    # 15/15 passed
 
 ### Fairness runs (inside `test/run.mjs`)
 
-* **25 routes** — 5 pilots × 5 seeds — flown to **10 km with zero boosts, zero skills and zero
-  upgrades** using the reference pilot. 25/25 survived (avg 91 pad hits per run).
+* **25 routes** — 5 pilots × 5 seeds — flown to **10 km** with steering and 3 boosts only
+  (no skills, no upgrades). 25/25 survived.
 * Ad-hoc deeper sweep (not part of the suite): **50 routes** — 5 pilots × 10 seeds — to **20 km**:
   50/50 survived.
-* A pilot who presses *nothing at all* still travels **~3.6–4.0 km** in 70 s on the real game loop.
+* A pilot who presses *nothing at all* now dies in the first kilometre — by design, since the nets
+  are gone. Falling is a mistake, not a rescue.
 
 ### `test/browser.mjs` — 15 checks, 15 passing
 
@@ -219,5 +241,7 @@ in a browser.
 
 * Adaptive quality changes particle counts, haze and DPR cap; it does not re-tessellate art.
 * Records and upgrades are per-browser (`localStorage`), no cloud sync.
+* The EDM sequencer schedules ~34 voices/second at 128 BPM. That is fine on desktop WebAudio, but
+  nobody has profiled it on a low-end phone.
 * The reference autopilot in `test/` is a test fixture, not an in-game AI.
 * `.art-out/` previews are generated locally (`npm run art`) and intentionally not committed.

@@ -858,23 +858,25 @@ export function drawZones(ctx, zones, t) {
     const def = ITEM_DEFS[z.id];
     ctx.save();
     ctx.translate(z.x, z.y);
-    const halfH = (def.height || 600) / 2;
-    const halfW = (def.width || 160) / 2;
+    const halfH = (z.height ?? def.height ?? 600) / 2;
+    const halfW = (z.width ?? def.width ?? 160) / 2;
+    const strong = !!z.sky; // sky thermals must read as "climb here"
     ctx.save();
-    ctx.globalAlpha = 0.16 + Math.sin(t * 3) * 0.03;
+    ctx.globalAlpha = (strong ? 0.34 : 0.16) + Math.sin(t * 3) * 0.03;
     const g = ctx.createLinearGradient(0, -halfH, 0, halfH);
-    g.addColorStop(0, hexA(def.colour, 0.1));
-    g.addColorStop(0.5, hexA(def.colour, 0.5));
-    g.addColorStop(1, hexA(def.colour, 0.1));
+    g.addColorStop(0, hexA(def.colour, strong ? 0.34 : 0.1));
+    g.addColorStop(0.5, hexA(def.colour, strong ? 0.85 : 0.5));
+    g.addColorStop(1, hexA(def.colour, strong ? 0.34 : 0.1));
     ctx.fillStyle = g;
     rr(ctx, -halfW, -halfH, halfW * 2, halfH * 2, 40);
     ctx.fill();
     ctx.restore();
-    for (let i = 0; i < 5; i++) {
-      const ph = ((t * 0.55 + i / 5) % 1);
+    const arrows = Math.max(5, Math.round(halfH / 90));
+    for (let i = 0; i < arrows; i++) {
+      const ph = ((t * 0.55 + i / arrows) % 1);
       const y = halfH - ph * halfH * 2;
       ctx.save();
-      ctx.globalAlpha = 0.35 * (1 - Math.abs(ph - 0.5) * 1.4);
+      ctx.globalAlpha = (strong ? 0.75 : 0.42) * (1 - Math.abs(ph - 0.5) * 1.4);
       strokePath(ctx, () => {
         ctx.beginPath();
         ctx.moveTo(-halfW + 14, y);

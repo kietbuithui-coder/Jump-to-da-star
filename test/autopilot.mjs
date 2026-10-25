@@ -24,12 +24,16 @@ export function simulateFlight(seed, opts = {}) {
     recordPads = false,
     steer = true,
     airAccelMul = 1,
+    boostCharges = 3,
+    useBoost = true,
   } = opts;
   const world = new World(seed, { gravityMul, dragMul, bounceMul });
   const p = { x: LAUNCH.startX, y: LAUNCH.startY, vx: LAUNCH.vx, vy: LAUNCH.vy };
   const startX = p.x;
   let hops = 0;
   const padHits = [];
+  let cooldown = 0;
+  let boosts = boostCharges;
   let maxX = p.x;
   let t = 0;
   let dead = false;
@@ -43,28 +47,38 @@ export function simulateFlight(seed, opts = {}) {
     t += DT;
     if ((maxX - startX) / PX_PER_METER >= maxMetres) break;
 
-    // --- steering: a player (and this bot) may use horizontal air control
+    // --- steering: a competent pilot reads the next pad and commits
     if (steer) {
-      const pads = world.padsNear(p.x + 1200);
+      const pads = world.padsNear(p.x);
       let target = null;
       for (const pad of pads) {
-        if (!pad.support) continue;
-        if (pad.launchPad) continue;
-        if (pad.x > p.x + 220 && (!target || pad.x < target.x)) target = pad;
+        if (!pad.support || pad.launchPad) continue;
+        if (pad.x < p.x + 180) continue;
+        if (!target || pad.x < target.x) target = pad;
       }
+      const g = PHYS.gravity * gravityMul;
       if (target) {
         const dx = target.x - p.x;
         const dy = target.y - p.y;
-        const g = PHYS.gravity * gravityMul;
-        // descending root: the moment our arc falls back through the pad height
+        // time until our arc drops back through the pad height
         const disc = p.vy * p.vy + 2 * g * (dy + radius);
-        let tt = disc > 0 ? (-p.vy + Math.sqrt(disc)) / g : 0.7;
-        if (!(tt > 0.08)) tt = 0.7;
-        const want = Math.max(620, Math.min(1500, dx / tt));
+        let tt = disc > 0 ? (-p.vy + Math.sqrt(disc)) / g : 0.35;
+        if (!(tt > 0.05)) tt = 0.35;
+        const want = Math.max(700, Math.min(1900, dx / tt));
         const accel = PHYS.airAccel * airAccelMul;
         if (p.vx < want) p.vx = Math.min(want, p.vx + accel * DT);
-        else p.vx = Math.max(want, p.vx - accel * 1.2 * DT);
+        else p.vx = Math.max(want, p.vx - accel * 0.7 * DT);
+
+        // Use a boost when the pad is well above the arc and we are falling:
+        // exactly what a player does to save a hop.
+        if (useBoost && boosts > 0 && p.vy > 250 && dy < -320 && cooldown <= 0) {
+          p.vy = Math.min(p.vy, -1250);
+          p.vx = Math.min(2150, p.vx + 320);
+          boosts--;
+          cooldown = 0.5;
+        }
       }
+      cooldown -= DT;
     }
 
     stepFlight(p, DT, { gravityMul, dragMul });
@@ -116,6 +130,7 @@ export function simulateFlight(seed, opts = {}) {
     metres: (maxX - startX) / PX_PER_METER,
     target: maxMetres,
     hops,
+    boostsLeft: boosts,
     dead,
     deathCause,
     time: t,

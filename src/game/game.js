@@ -22,7 +22,7 @@ import { ITEM_DEFS } from './items.js';
 import { CHARACTERS, resolveStats, GLITCH_MODES } from './characters.js';
 import { ScoreTracker } from './score.js';
 import { Particles } from './particles.js';
-import { Camera, zoomForViewport } from './camera.js';
+import { Camera, VIEW_SCALES, zoomForViewport } from './camera.js';
 
 const RUN = {
   respawnDelay: 0.55,
@@ -85,11 +85,19 @@ export class Game {
     this.shakeScale = this.save?.data?.settings?.reduceShake ? 0.4 : 1;
   }
 
+  /** 'normal' | 'wide' | 'ultra' — how much of the world you can read ahead. */
+  setViewMode(view) {
+    const v = VIEW_SCALES[view] ? view : 'normal';
+    this.viewMode = v;
+    if (this.cssW) this.resize(this.cssW, this.cssH, this.dpr);
+    return v;
+  }
+
   resize(cssW, cssH, dpr) {
     this.cssW = cssW;
     this.cssH = cssH;
     this.dpr = dpr;
-    const zoom = zoomForViewport(cssW, cssH);
+    const zoom = zoomForViewport(cssW, cssH, this.viewMode || 'normal');
     this.camera.setViewport(cssW / zoom, cssH / zoom, zoom);
     this.camera.reduceShake = !!this.save?.data?.settings?.reduceShake;
     if (this.player) this.camera.snapTo(this.player.x, this.player.y);
@@ -456,22 +464,19 @@ export class Game {
     // hints for the tutorial zone
     this.hintTimer += dt;
     const metres = this.score.metres;
-    if (metres > 30 && !this.hintsShown.has('boost') && this.hintTimer > 1.2) {
-      this.hintsShown.add('boost');
-      this.addFloater('SPACE / BOOST BUTTON — 3 boosts, spend them well', p.x + 260, p.y - 210, '#7ee8ff', 20, 3.4);
-    }
-    if (metres > 120 && !this.hintsShown.has('skill')) {
-      this.hintsShown.add('skill');
-      this.addFloater(`SHIFT / SKILL — ${CHARACTERS[this.characterId].skill.name}`, p.x + 300, p.y - 190, '#ffd93b', 20, 3.6);
-    }
-    if (metres > 260 && !this.hintsShown.has('energy')) {
-      this.hintsShown.add('energy');
-      this.addFloater('ENERGY = SKILL FUEL. Grab the orbs.', p.x + 320, p.y - 180, '#9ff7a0', 20, 3.6);
-    }
-    if (metres > 420 && !this.hintsShown.has('spring')) {
-      this.hintsShown.add('spring');
-      this.addFloater('PADS BOUNCE YOU ALONG THEIR NORMAL — aim your landing!', p.x + 340, p.y - 200, '#ff9ad5', 20, 4);
-    }
+    // Tutorial hints fire once each and are spaced out, so two lines can never
+    // land on top of each other mid-screen.
+    const hint = (key, atMetres, text, colour) => {
+      if (metres < atMetres || this.hintsShown.has(key)) return;
+      if (this.time - (this.lastHintAt || -99) < 2.6) return;
+      this.hintsShown.add(key);
+      this.lastHintAt = this.time;
+      this.addFloater(text, p.x + 300, p.y - 230, colour, 20, 3.2);
+    };
+    hint('boost', 30, 'SPACE / BOOST BUTTON — 3 boosts, spend them well', '#7ee8ff');
+    hint('skill', 120, `SHIFT / SKILL — ${CHARACTERS[this.characterId].skill.name}`, '#ffd93b');
+    hint('energy', 260, 'ENERGY = SKILL FUEL. Grab the orbs.', '#9ff7a0');
+    hint('spring', 420, 'PADS BOUNCE ALONG THEIR NORMAL — aim your landing!', '#ff9ad5');
   }
 
   updateAnimation(dt) {
@@ -562,8 +567,8 @@ export class Game {
     const p = this.player;
     for (const z of this.world.zonesNear(p.x)) {
       const def = ITEM_DEFS[z.id];
-      const halfW = (def.width || 160) / 2;
-      const halfH = (def.height || 600) / 2;
+      const halfW = (z.width ?? def.width ?? 160) / 2;
+      const halfH = (z.height ?? def.height ?? 600) / 2;
       if (Math.abs(p.x - z.x) < halfW + 30 && Math.abs(p.y - z.y) < halfH + 30) {
         p.vy -= (def.lift || 1800) * dt;
         p.vx += (def.vxPush || 0) * dt;

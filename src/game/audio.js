@@ -4,8 +4,11 @@
  * "A boost should sound like someone lit a jet engine in a kitchen." — Shapi
  */
 import { AUDIO } from '../config/config.js';
+import { TRACKS, eventsAt, stepSeconds, trackLength } from './music.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
+
+const hzOf = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
 
 export class AudioEngine {
   constructor(settings = {}) {
@@ -15,12 +18,13 @@ export class AudioEngine {
     this.voices = 0;
     this.musicVoices = 0;
     this.mode = 'menu';
-    this.tempo = 126;
+    this.tempo = TRACKS.menu.bpm;
     this.step = 0;
     this.nextNoteTime = 0;
     this.timer = null;
     this.intensity = 0;
     this.musicOn = true;
+    this.track = TRACKS.menu;
     this.lastPlay = {};
     this.muted = false;
     if (typeof window !== 'undefined') {
@@ -54,9 +58,16 @@ export class AudioEngine {
     this.comp.release.value = 0.18;
     this.musicBus = this.ctx.createGain();
     this.musicBus.gain.value = this.settings.music * 0.9;
+    // sidechain pump: melodic parts duck under the kick, drums bypass it
+    this.duckGain = this.ctx.createGain();
+    this.duckGain.gain.value = 1;
+    this.drumBus = this.ctx.createGain();
+    this.drumBus.gain.value = this.settings.music * 0.9;
     this.sfxBus = this.ctx.createGain();
     this.sfxBus.gain.value = this.settings.sfx;
-    this.musicBus.connect(this.master);
+    this.musicBus.connect(this.duckGain);
+    this.duckGain.connect(this.master);
+    this.drumBus.connect(this.master);
     this.sfxBus.connect(this.master);
     this.master.connect(this.comp);
     this.comp.connect(this.ctx.destination);
@@ -76,6 +87,7 @@ export class AudioEngine {
     if (!this.ready) return;
     this.master.gain.value = this.muted ? 0 : this.settings.master;
     this.musicBus.gain.value = this.settings.music * 0.9;
+    this.drumBus.gain.value = this.settings.music * 0.9;
     this.sfxBus.gain.value = this.settings.sfx;
   }
 
@@ -307,12 +319,23 @@ export class AudioEngine {
     this.timer = null;
   }
 
+  /** Release the scheduler (used by tests and on page teardown). */
+  dispose() {
+    this.stopMusic();
+    this.ready = false;
+  }
+
   setScene(mode) {
-    if (this.mode === mode) return;
+    const next = TRACKS[mode] || TRACKS.menu;
+    if (this.mode === mode && this.track === next) return;
     this.mode = mode;
-    const tempos = { menu: 112, launch: 124, fly: 132, gameover: 92 };
-    this.tempo = tempos[mode] || 126;
-    if (this.ready) this.step = 0;
+    this.track = next;
+    this.tempo = this.track.bpm;
+    if (this.ready) {
+      // restart the loop on the next bar so scene changes land musically
+      this.step = 0;
+      this.nextNoteTime = Math.max(this.nextNoteTime, this.ctx.currentTime + 0.04);
+    }
   }
 
   setIntensity(v) {
@@ -321,71 +344,153 @@ export class AudioEngine {
 
   _schedule() {
     if (!this.ready) return;
-    const ahead = 0.16;
-    const beat = 60 / this.tempo;
+    const ahead = 0.18;
+    const track = this.track || (this.track = TRACKS.menu);
+    if (this.nextNoteTime < this.ctx.currentTime - 0.5) {
+      // tab was asleep: don't try to backfill minutes of missed notes
+      this.nextNoteTime = this.ctx.currentTime + 0.05;
+    }
+    const stepDur = stepSeconds(track);
+    const total = trackLength(track);
     while (this.nextNoteTime < this.ctx.currentTime + ahead) {
-      this._playStep(this.step, this.nextNoteTime, beat);
-      this.nextNoteTime += beat / 2;
-      this.step = (this.step + 1) % 32;
+      const time = this.nextNoteTime;
+      if (this.settings.music > 0.001) {
+        for (const ev of eventsAt(track, this.step, this.musicIntensity())) {
+          this._playMusicEvent(ev, time);
+        }
+      }
+      this.nextNoteTime += stepDur;
+      this.step = (this.step + 1) % total;
     }
   }
 
-  _playStep(step, time, beat) {
-    if (this.settings.music <= 0.001) return;
-    const bus = this.musicBus;
-    const delay = Math.max(0, time - this.ctx.currentTime);
-    const mode = this.mode;
-    // A-minor-ish funk vamp: Am | F | C | G
-    const roots = [57, 53, 48, 55];
-    const chords = [
-      [0, 3, 7, 10],
-      [-4, 0, 3, 7],
-      [3, 7, 10, 14],
-      [-2, 2, 5, 10],
-    ];
-    const bar = Math.floor(step / 8) % 4;
-    const s = step % 8;
-    const chord = chords[bar];
-    const root = roots[bar];
+  /** Menu stays loud and confident; flight adds energy as the combo climbs. */
+  musicIntensity() {
+    const base = (this.track || TRACKS.menu).intensity;
+    if (this.mode === 'menu' || this.mode === 'gameover') return base;
+    return Math.min(1, base + this.intensity * 0.35);
+  }
 
-    const quiet = mode === 'gameover' ? 0.55 : 1;
-    // bass on beats 1 & 3 (+ pickup)
-    if (s === 0 || s === 3 || s === 6) {
-      this._musicTone(NOTE(root - 24), 0.22, {
-        type: 'sawtooth',
-        gain: 0.16 * quiet,
-        delay,
-        filter: { type: 'lowpass', freq: 420, to: 220 },
-        bus,
-      });
+  _duck(time) {
+    const g = this.duckGain && this.duckGain.gain;
+    if (!g || !g.cancelScheduledValues) return;
+    try {
+      g.cancelScheduledValues(time);
+      g.setValueAtTime(0.42, time);
+      g.linearRampToValueAtTime(1, time + 0.17);
+    } catch (_) {}
+  }
+
+  /** Turn one sequencer event into sound. */
+  _playMusicEvent(ev, time) {
+    const delay = Math.max(0, time - this.ctx.currentTime);
+    const drums = this.drumBus || this.musicBus;
+    const melodic = this.musicBus;
+    const dur = ev.dur || 0.15;
+    const gain = ev.gain || 0.1;
+    switch (ev.voice) {
+      case 'kick':
+        this._musicTone(52, 0.2, { type: 'sine', gain: gain, to: 31, delay, bus: drums });
+        this._musicNoise(0.05, { gain: gain * 0.35, freq: 180, type: 'lowpass', delay, bus: drums, q: 0.6 });
+        this._duck(time);
+        break;
+      case 'clap':
+        this._musicNoise(dur, { gain, freq: 1500, type: 'bandpass', delay, bus: drums, q: 1.5 });
+        this._musicNoise(dur * 0.6, { gain: gain * 0.6, freq: 2400, type: 'bandpass', delay: delay + 0.012, bus: drums, q: 1.8 });
+        break;
+      case 'hat':
+        this._musicNoise(dur, { gain, freq: 8800, type: 'highpass', delay, bus: drums, q: 0.8 });
+        break;
+      case 'ohat':
+        this._musicNoise(dur, { gain, freq: 7200, type: 'highpass', delay, bus: drums, q: 1.1 });
+        break;
+      case 'snare':
+        this._musicNoise(dur, { gain, freq: 1400, type: 'bandpass', delay, bus: drums, q: 1.2 });
+        this._musicTone(180, dur, { type: 'triangle', gain: gain * 0.6, to: 120, delay, bus: drums });
+        break;
+      case 'bass':
+        this._musicTone(hzOf(ev.note), dur, {
+          type: 'sawtooth',
+          gain,
+          delay,
+          bus: melodic,
+          filter: { type: 'lowpass', freq: 320, to: 110 },
+        });
+        this._musicTone(hzOf(ev.note) / 2, dur * 0.9, { type: 'sine', gain: gain * 0.7, delay, bus: melodic });
+        break;
+      case 'stab': {
+        const notes = ev.notes || [];
+        notes.forEach((n, i) => {
+          this._musicTone(hzOf(n), dur, {
+            type: 'sawtooth',
+            gain: gain / Math.max(2, notes.length),
+            delay,
+            detune: i % 2 ? 7 : -7,
+            bus: melodic,
+            filter: { type: 'lowpass', freq: 2600, to: 900 },
+          });
+        });
+        break;
+      }
+      case 'lead':
+        this._musicTone(hzOf(ev.note), dur, {
+          type: 'square',
+          gain,
+          delay,
+          bus: melodic,
+          filter: { type: 'lowpass', freq: 3800, to: 1600 },
+        });
+        break;
+      case 'pluck':
+        this._musicTone(hzOf(ev.note), dur, { type: 'triangle', gain, delay, bus: melodic });
+        break;
+      case 'sub':
+        this._musicTone(hzOf(ev.note), dur, { type: 'sine', gain, delay, bus: melodic });
+        break;
+      case 'pad': {
+        const notes = ev.notes || [];
+        for (const n of notes) {
+          this._musicTone(hzOf(n), dur, {
+            type: 'sawtooth',
+            gain: gain / Math.max(2, notes.length),
+            delay,
+            detune: 5,
+            bus: melodic,
+            filter: { type: 'lowpass', freq: 1400, to: 700 },
+          });
+        }
+        break;
+      }
+      case 'riser':
+        this._musicRiser(dur, gain, delay);
+        break;
+      case 'impact':
+        this._musicTone(90, dur, { type: 'sine', gain, to: 32, delay, bus: drums });
+        this._musicNoise(0.3, { gain: gain * 0.5, freq: 600, type: 'lowpass', delay, bus: drums, q: 0.5 });
+        break;
+      default:
+        break;
     }
-    // arpeggio 16ths with intensity-based octave shimmer
-    if (mode !== 'menu' || s % 2 === 0) {
-      const note = chord[(step + bar) % chord.length] + 12;
-      this._musicTone(NOTE(note + (mode === 'fly' && this.intensity > 0.5 ? 12 : 0)), 0.12, {
-        type: mode === 'menu' ? 'triangle' : 'square',
-        gain: 0.045 * quiet * (0.7 + this.intensity * 0.6),
-        delay,
-        filter: { type: 'lowpass', freq: 2400, to: 1200 },
-        bus,
-      });
-    }
-    // drums
-    if (s === 0 || s === 4) {
-      this._musicNoise(0.11, { gain: 0.2 * quiet, freq: 120, type: 'lowpass', delay, bus, q: 0.7 });
-      this._musicTone(52, 0.18, { type: 'sine', gain: 0.16 * quiet, to: 38, delay, bus });
-    }
-    if (s === 2 || s === 6) this._musicNoise(0.07, { gain: 0.09 * quiet, freq: 2200, type: 'bandpass', delay, bus, q: 2 });
-    if (mode !== 'menu' && s % 2 === 1) {
-      this._musicNoise(0.035, { gain: 0.045 * quiet, freq: 8200, type: 'highpass', delay, bus, q: 0.6 });
-    }
-    // combo layer: extra sparkle at high intensity
-    if (this.intensity > 0.35 && s === 3) {
-      this._musicTone(NOTE(root + 24), 0.16, { type: 'sine', gain: 0.05 * this.intensity, delay, bus });
-    }
-    if (mode === 'launch' && s === 0) {
-      this._musicNoise(0.2, { gain: 0.08, freq: 300, to: 1600, type: 'bandpass', delay, bus, q: 0.8 });
-    }
+  }
+
+  _musicRiser(dur, gain, delay) {
+    const t0 = this.ctx.currentTime + delay;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.4;
+    f.frequency.setValueAtTime(320, t0);
+    f.frequency.exponentialRampToValueAtTime(7200, t0 + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + dur * 0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.drumBus || this.musicBus);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
   }
 
   _musicTone(freq, dur, opts) {
@@ -394,6 +499,7 @@ export class AudioEngine {
     const g = this.ctx.createGain();
     osc.type = opts.type || 'sine';
     osc.frequency.setValueAtTime(freq, t0);
+    if (opts.detune && osc.detune) osc.detune.value = opts.detune;
     if (opts.to) osc.frequency.exponentialRampToValueAtTime(Math.max(20, opts.to), t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.linearRampToValueAtTime(opts.gain, t0 + 0.012);

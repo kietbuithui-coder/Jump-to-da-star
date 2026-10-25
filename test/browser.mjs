@@ -118,6 +118,12 @@ let now = 0;
 function tick(frames = 1, stepMs = 16.7) {
   for (let i = 0; i < frames; i++) {
     now += stepMs;
+    // keep the fake audio clock in step with the fake frame clock, and drive
+    // the music scheduler by hand (jsdom timers do not run inside a sync loop)
+    if (window.__audioCtx) {
+      window.__audioCtx.currentTime = now / 1000;
+      if (window.JTTS?.audio?.ready) window.JTTS.audio._schedule();
+    }
     const queue = rafQueue;
     rafQueue = [];
     for (const cb of queue) cb(now);
@@ -132,17 +138,34 @@ try {
 /* ------------------------------------------------------- storage / audio */
 window.localStorage.clear();
 let audioUnlocked = 0;
+let oscCount = 0;
+let noiseCount = 0;
 class FakeAudioContext {
   constructor() {
+    window.__audio = { osc: 0, noise: 0, contexts: (window.__audio?.contexts || 0) + 1 };
+    window.__audioCtx = this;
     this.state = 'suspended';
     this.currentTime = 0;
     this.destination = { connect() {} };
     this.sampleRate = 48000;
   }
   createGain() {
-    return { gain: { value: 1, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {} }, connect() {}, disconnect() {} };
+    return {
+      gain: {
+        value: 1,
+        setValueAtTime() {},
+        linearRampToValueAtTime() {},
+        exponentialRampToValueAtTime() {},
+        setTargetAtTime() {},
+        cancelScheduledValues() {},
+      },
+      connect() {},
+      disconnect() {},
+    };
   }
   createOscillator() {
+    oscCount++;
+    if (window.__audio) window.__audio.osc = oscCount;
     return {
       type: 'sine',
       frequency: { value: 440, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} },
@@ -157,6 +180,8 @@ class FakeAudioContext {
     return { numberOfChannels: channels, length, sampleRate: rate, getChannelData: () => new Float32Array(length) };
   }
   createBufferSource() {
+    noiseCount++;
+    if (window.__audio) window.__audio.noise = noiseCount;
     return { buffer: null, playbackRate: { value: 1, setValueAtTime() {} }, connect() {}, start() {}, stop() {}, onended: null };
   }
   createBiquadFilter() {
@@ -342,6 +367,45 @@ check('upgrade lab refuses purchases you cannot afford and accepts ones you can'
   const persisted = JSON.parse(window.localStorage.getItem('jtts.save.v2'));
   if ((persisted.upgrades.frog.launch || 0) !== after) throw new Error('upgrade was not persisted');
   return `launch ${before} → ${after}, ${save.data.coins} coins left, saved`;
+});
+
+check('the menu has a fullscreen button and it does not throw', () => {
+  const btn = $('[data-action="fullscreen"]');
+  if (!btn) throw new Error('no fullscreen button in the menu');
+  if (!btn.textContent.toLowerCase().includes('fullscreen')) throw new Error('button is unlabelled');
+  click(btn);
+  tick(1);
+  return 'menu fullscreen button wired';
+});
+
+check('view setting switches camera zoom and persists', () => {
+  window.JTTS.showScreen('settings');
+  tick(1);
+  const seg = $('#setView');
+  if (!seg) throw new Error('no VIEW control in settings');
+  const ultra = seg.querySelector('[data-v="ultra"]');
+  click(ultra);
+  tick(1);
+  if (window.JTTS.save.data.settings.view !== 'ultra') throw new Error('view not saved');
+  const stored = JSON.parse(window.localStorage.getItem('jtts.save.v2'));
+  if (stored.settings.view !== 'ultra') throw new Error('view not persisted');
+  const zoomUltra = window.JTTS.game.camera.zoom;
+  click(seg.querySelector('[data-v="normal"]'));
+  tick(1);
+  const zoomNormal = window.JTTS.game.camera.zoom;
+  if (!(zoomUltra < zoomNormal)) throw new Error(`ultra zoom ${zoomUltra} is not smaller than normal ${zoomNormal}`);
+  click(seg.querySelector('[data-v="ultra"]'));
+  tick(1);
+  return `ultra ${zoomUltra.toFixed(2)}× vs normal ${zoomNormal.toFixed(2)}×`;
+});
+
+check('the menu track (EDM) is scheduled once audio unlocks', () => {
+  const before = window.__audio?.osc || 0;
+  // the fake clock is driven by requestAnimationFrame ticks
+  for (let i = 0; i < 40; i++) tick(1);
+  const after = window.__audio?.osc || 0;
+  if (after <= before) throw new Error(`no oscillators scheduled (${before} → ${after})`);
+  return `${after - before} notes scheduled by the music engine`;
 });
 
 check('settings sliders persist to storage', () => {

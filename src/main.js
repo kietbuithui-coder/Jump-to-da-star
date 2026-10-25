@@ -549,6 +549,7 @@ function refreshSettings() {
   $('#outTouch').textContent = Math.round(s.touchScale * 100) + '%';
   $('#setShake').checked = !!s.reduceShake;
   $('#setFps').checked = !!s.showFps;
+  for (const b of $$('#setView button')) b.classList.toggle('is-active', b.dataset.v === s.view);
   for (const b of $$('#setQuality button')) b.classList.toggle('is-active', b.dataset.q === s.quality);
   for (const b of $$('#setTouch button')) b.classList.toggle('is-active', b.dataset.t === s.touch);
 }
@@ -558,6 +559,7 @@ function bindSettings() {
     save.save();
     audio.applySettings(save.data.settings);
     game.setQuality(save.data.settings.quality);
+    game.setViewMode(save.data.settings.view);
     game.camera.reduceShake = !!save.data.settings.reduceShake;
     $('#fpsReadout').classList.toggle('is-on', !!save.data.settings.showFps);
     resize();
@@ -580,6 +582,14 @@ function bindSettings() {
     $('#outTouch').textContent = e.target.value + '%';
     apply();
   });
+  for (const b of $$('#setView button')) {
+    b.addEventListener('click', () => {
+      save.data.settings.view = b.dataset.v;
+      audio.sfx('click');
+      refreshSettings();
+      apply();
+    });
+  }
   for (const b of $$('#setQuality button')) {
     b.addEventListener('click', () => {
       save.data.settings.quality = b.dataset.q;
@@ -618,6 +628,7 @@ function bindSettings() {
 // ------------------------------------------------------------------ run flow
 function startRun() {
   audio.unlock();
+  game.setViewMode(save.data.settings.view);
   game.setQuality(save.data.settings.quality);
   game.setCharacter(save.data.selected, save.data.upgrades);
   game.setQuality(save.data.settings.quality);
@@ -796,6 +807,15 @@ function bindInput() {
       else if (uiState.screen === 'menu') startRun();
       else if (uiState.screen === null && game.state === 'launch') game.fireLaunch();
     }
+    if (e.code === 'KeyZ' && !uiState.screen) {
+      const order = ['normal', 'wide', 'ultra'];
+      const next = order[(order.indexOf(save.data.settings.view) + 1) % order.length];
+      save.data.settings.view = next;
+      game.setViewMode(next);
+      save.save();
+      toast(`VIEW: ${next.toUpperCase()}`, 1000, '#7ee8ff');
+      e.preventDefault();
+    }
     if (e.code === 'KeyF') {
       toggleFullscreen();
       e.preventDefault();
@@ -865,6 +885,9 @@ function bindInput() {
     switch (action) {
       case 'play':
         startRun();
+        break;
+      case 'fullscreen':
+        toggleFullscreen();
         break;
       case 'characters':
         showScreen('characters');
@@ -959,6 +982,7 @@ function init() {
   game.setQuality(save.data.settings.quality);
   game.setCharacter(save.data.selected, save.data.upgrades);
   game.state = 'idle';
+  game.setViewMode(save.data.settings.view);
   bindInput();
   bindSettings();
   refreshMenu();

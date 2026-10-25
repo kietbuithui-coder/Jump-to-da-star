@@ -24,6 +24,10 @@ export class Camera {
     this.vw = w;
     this.vh = h;
     this.baseZoom = baseZoom;
+    // Snap on resize / view change: lerping the zoom here would make a view
+    // switch feel like the camera was still deciding.
+    this.zoom = baseZoom;
+    this.targetZoom = baseZoom;
   }
 
   snapTo(px, py) {
@@ -94,9 +98,13 @@ export class Camera {
   }
 }
 
-export function zoomForViewport(cssW, cssH) {
+export const VIEW_SCALES = { normal: 1, wide: 0.72, ultra: 0.5 };
+
+export function zoomForViewport(cssW, cssH, view = 'normal') {
   // Show at least ~1450 world-px horizontally and ~820 vertically so incoming
-  // pads and loot are always readable before they arrive.
-  const z = Math.min(cssW / 1480, cssH / 800);
-  return clamp(z, 0.5, 1.45);
+  // pads and loot are always readable before they arrive. `view` zooms further
+  // out so a skilled player can read two or three hops ahead.
+  const scale = VIEW_SCALES[view] ?? 1;
+  const z = Math.min(cssW / 1480, cssH / 800) * scale;
+  return clamp(z, 0.3, 1.45);
 }

@@ -83,6 +83,13 @@ export const WORLD = {
   itemMinGap: 190,
   routeStep: 1250, // nominal horizontal distance between support nodes (px)
   routeStepVariance: 260,
+  routeBaseY: -420, // nominal height of the flight corridor
+  waveAmp: 640, // primary vertical wave (how high and low the route breathes)
+  waveAmp2: 240,
+  dropMax: 520, // biggest vertical step between two pads
+  skyChance: 0.4, // chance a hop carries a high-altitude reward shelf
+  skyMin: 620, // px above the pad line (needs a thermal / boost chain)
+  skyMax: 1100,
 };
 
 export const CAMERA = {

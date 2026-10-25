@@ -155,7 +155,7 @@ export class World {
     const m = Math.max(0, (x - this.startX) / PX_PER_METER);
     // Region flavour × a long-haul falloff: Shapi's lab is generous, the Star
     // Frontier is a wasteland where every orb matters.
-    const falloff = 1 / (1 + Math.max(0, m - 1200) / 9000);
+    const falloff = 1 / (1 + Math.max(0, m - 500) / 7000);
     return regionAt(m).density * falloff;
   }
 
@@ -171,9 +171,10 @@ export class World {
     // The corridor waves up and down inside a fixed band. `drop` is measured
     // from the current flight line, so consecutive pads step vertically by
     // exactly this amount — that is how the whole route is kept inside a band.
-    const wave = Math.sin(this.nodeIndex * 0.42) * 470 + Math.sin(this.nodeIndex * 0.13) * 190;
-    const desiredY = -420 + wave + rng.range(-150, 150) + diff * 60;
-    const drop = clamp(desiredY - (route.y - 30), -330, 330);
+    const wave =
+      Math.sin(this.nodeIndex * 0.42) * WORLD.waveAmp + Math.sin(this.nodeIndex * 0.13) * WORLD.waveAmp2;
+    const desiredY = WORLD.routeBaseY + wave + rng.range(-150, 150) + diff * 60;
+    const drop = clamp(desiredY - (route.y - 30), -WORLD.dropMax, WORLD.dropMax);
 
     // ---- 1. fly the reference arc
     const sim = { x: route.x, y: route.y, vx: route.vx, vy: route.vy, t: 0 };
@@ -326,31 +327,63 @@ export class World {
       }
     }
 
-    // ---- 7. Shapi safety nets: a rescue lane along the bottom of the world.
-    // Every gap between two support pads gets a net wide enough to catch a
-    // pilot who mistimes the arc. Falling is punished with lost energy and a
-    // broken combo — never with an unfair run end.
-    {
-      const gap = padX - prevX;
-      if (gap > 760) {
-        const rx = prevX + gap * 0.5;
-        const ry = this.floorAt(rx) - rng.range(130, 190);
-        // The net spans the whole hop: a mistimed arc always has something to
-        // land on. It costs energy and your combo — it is not a free ride.
-        const width = clamp(gap * 1.12 + 160, 780, 4200);
-        this.hopsSinceNet = 0;
+    // ---- 7. SKY SHELF: premium loot parked high above the route.
+    // A normal bounce never gets there. A thermal column (or a boost chain)
+    // does — that is the whole point: spend a resource, take a risk, get paid.
+    if (this.nodeIndex > 1 && rng.chance(WORLD.skyChance)) {
+      const sx = padX - rng.range(480, 1000);
+      const climb = rng.range(WORLD.skyMin, WORLD.skyMax); // 620..1100 px of lift
+      const sy = padY - climb;
+      const premium = rng.pick(['boostStar', 'super', 'magnet', 'coffee', 'balloon', 'parachute']);
+      const def = ITEM_DEFS[premium];
+      const height = climb + 320;
+
+      // thermal column from the flight line up past the shelf
+      this._register({
+        id: 'hotair',
+        kind: 'zone',
+        x: sx,
+        y: padY - height * 0.5 + 160,
+        width: 210,
+        height,
+        r: ITEM_DEFS.hotair.r,
+        bob: 0,
+        sky: true,
+      });
+
+      // breadcrumb trail climbing inside the column
+      for (let i = 0; i < 3; i++) {
         this._register({
-          id: 'safetyNet',
-          kind: 'pad',
-          x: rx,
-          y: ry,
-          angle: 0,
-          w: width,
-          nx: 0,
-          ny: -1,
-          r: 30,
-          rescue: true,
-          catch: 190,
+          id: 'orb',
+          kind: 'pickup',
+          x: sx + rng.range(-46, 46),
+          y: padY - climb * ((i + 1) / 4),
+          r: ITEM_DEFS.orb.r,
+          bob: rng.range(0, 6.28),
+          sky: true,
+        });
+      }
+      this._register({
+        id: premium,
+        kind: def.kind,
+        x: sx,
+        y: sy,
+        r: def.r,
+        bob: rng.range(0, 6.28),
+        sky: true,
+        high: true,
+        anchorY: padY,
+      });
+      if (rng.chance(0.4)) {
+        this._register({
+          id: 'jetGate',
+          kind: 'gate',
+          x: sx + rng.range(160, 340),
+          y: padY - 120,
+          r: ITEM_DEFS.jetGate.r,
+          angle: rng.range(-0.22, -0.08), // near vertical: a second path up
+          bob: 0,
+          sky: true,
         });
       }
     }

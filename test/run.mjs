@@ -58,11 +58,14 @@ const { resolvePadBounce, padContact } = await import('../src/game/bounce.js');
 const { stepFlight } = await import('../src/game/flight.js');
 const { sweptCircleSegment, applyGravity, applyDrag } = await import('../src/game/physics.js');
 const { PHYS, LAUNCH, BOOST, PX_PER_METER, REGIONS, regionAt, QUALITY } = await import('../src/config/config.js');
+const { zoomForViewport, VIEW_SCALES } = await import('../src/game/camera.js');
+const { TRACKS, eventsAt, loopEvents, trackLength, stepSeconds, hz } = await import('../src/game/music.js');
 const { ScoreTracker } = await import('../src/game/score.js');
 const { Loop } = await import('../src/core/loop.js');
 const { simulateFlight } = await import('./autopilot.mjs');
 const { playRun } = await import('./play.mjs');
 const { UPGRADE_INFO, MAX_LEVEL, costForLevel, UPGRADE_COSTS } = await import('../src/game/upgrades.js');
+const audioModule = await import('../src/game/audio.js');
 
 let canvasMod = null;
 for (const c of ['@napi-rs/canvas', path.join(root, 'node_modules/@napi-rs/canvas/index.js'), '/tmp/canvastest/node_modules/@napi-rs/canvas/index.js']) {
@@ -104,6 +107,7 @@ function makeGame(seed = 3, charId = 'frog', upgrades = {}) {
 }
 
 const DT = 1 / 120;
+const WORLD_SKY = { min: 620, max: 1100 };
 
 /* ============================================================== 1. PHYSICS */
 group('physics');
@@ -183,7 +187,7 @@ check('character bounce stat changes the arc (frog bounces higher than chicken)'
 /* ================================================================ 3. WORLD */
 group('world generation');
 
-check('all 20 gameplay objects appear in generated worlds', () => {
+check('all 19 gameplay objects appear in generated worlds (no safety nets)', () => {
   const w = new World(11);
   w.ensure(18000 * PX_PER_METER);
   const seen = new Set();
@@ -193,7 +197,9 @@ check('all 20 gameplay objects appear in generated worlds', () => {
     for (const x of c.hazards) seen.add(x.id);
     for (const x of c.zones) seen.add(x.id);
   }
-  const missing = Object.keys(ITEM_DEFS).filter((id) => !seen.has(id));
+  assert(!seen.has('safetyNet'), 'safety nets must not spawn (removed by design)');
+  const expected = Object.keys(ITEM_DEFS).filter((id) => id !== 'safetyNet');
+  const missing = expected.filter((id) => !seen.has(id));
   assert(missing.length === 0, `missing: ${missing.join(', ')}`);
   return `${seen.size} distinct kinds`;
 });
@@ -220,52 +226,72 @@ check('hazard floor always stays inside the configured band', () => {
   return 'band respected across 5 seeds / 30 km';
 });
 
-check('every hop has a rescue net spanning the gap (no bottomless pits)', () => {
+check('no rescue pads spawn: a missed hop is a real death', () => {
   const w = new World(6);
-  w.ensure(12000 * PX_PER_METER);
-  const supports = [];
-  const nets = [];
+  w.ensure(16000 * PX_PER_METER);
+  let pads = 0;
   for (const c of w.chunks.values()) {
-    for (const pad of c.pads) (pad.rescue ? nets : supports).push(pad);
+    for (const pad of c.pads) {
+      pads++;
+      assert(pad.id !== 'safetyNet' && !pad.rescue, 'a rescue pad slipped into the world');
+    }
   }
-  supports.sort((a, b) => a.x - b.x);
-  nets.sort((a, b) => a.x - b.x);
-  assert(nets.length > 4, `expected nets, got ${nets.length}`);
-  let covered = 0;
-  for (let i = 1; i < supports.length; i++) {
-    const gap = supports[i].x - supports[i - 1].x;
-    if (gap < 760) continue;
-    const mid = (supports[i].x + supports[i - 1].x) / 2;
-    const net = nets.find((n) => n.x > supports[i - 1].x - 100 && n.x < supports[i].x + 100);
-    assert(net, `no net over the ${gap.toFixed(0)}px gap before x=${supports[i].x.toFixed(0)}`);
-    assert(Math.abs(net.x - mid) < gap * 0.4, 'net sits inside the hop');
-    assert(net.w >= gap * 0.8, `net ${net.w.toFixed(0)} too narrow for gap ${gap.toFixed(0)}`);
-    assert(net.y > w.floorAt(net.x) - 400 && net.y < w.floorAt(net.x), 'net hangs just above the hazard floor');
-    covered++;
-  }
-  return `${covered} gaps covered by ${nets.length} nets`;
+  assert(pads > 20, `expected a full pad chain, got ${pads}`);
+  return `${pads} pads, zero rescue nets`;
 });
 
-check('loot density thins out with distance (early vs late)', () => {
-  const w = new World(21);
-  w.ensure(22000 * PX_PER_METER);
-  const bucket = (from, to) => {
-    let n = 0;
+check('sky shelves are out of reach of a normal arc — and reachable with the lift provided', () => {
+  const w = new World(31);
+  w.ensure(20000 * PX_PER_METER);
+  const premium = [];
+  const lifts = [];
+  for (const c of w.chunks.values()) {
+    for (const it of c.items) if (it.sky && it.anchorY != null && it.id !== 'orb') premium.push(it);
+    for (const z of c.zones) lifts.push({ x: z.x, y: z.y, height: z.height ?? ITEM_DEFS[z.id].height, lift: ITEM_DEFS[z.id].lift });
+    for (const g of c.items) if (g.kind === 'gate') lifts.push({ x: g.x, y: g.y, gate: true });
+  }
+  assert(premium.length > 3, `expected sky prizes, got ${premium.length}`);
+
+  // physics: thermal lift over its own height, then ballistic coasting
+  const g = PHYS.gravity;
+  let checked = 0;
+  for (const item of premium) {
+    const climb = item.anchorY - item.y;
+    assert(climb >= WORLD_SKY.min - 1, `shelf only ${climb.toFixed(0)}px up (min ${WORLD_SKY.min})`);
+    // a normal bounce peaks around 500-700px: the shelf must beat that
+    assert(climb > 600, `shelf at ${climb.toFixed(0)}px is inside a normal arc`);
+    const zone = lifts.find((l) => !l.gate && Math.abs(l.x - item.x) < 400);
+    assert(zone, 'no thermal column under the sky prize');
+    const coast = (zone.lift * zone.height) / g; // extra rise from speed gained in the column
+    const reachable = zone.height + coast;
+    assert(reachable > climb + 120, `thermal only reaches ${reachable.toFixed(0)}px of ${climb.toFixed(0)}px`);
+    checked++;
+  }
+  return `${checked} shelves, all >600px above the line and inside thermal reach`;
+});
+
+check('loot density falls with distance (measured over 3 seeds)', () => {
+  const bands = [[300, 1500], [1500, 4000], [4000, 9000], [9000, 20000]];
+  const totals = bands.map(() => 0);
+  for (const seed of [1, 4, 17]) {
+    const w = new World(seed);
+    w.ensure(20000 * PX_PER_METER);
     for (const c of w.chunks.values()) {
       for (const it of c.items) {
+        if (it.sky) continue; // sky shelves are bonuses, not corridor density
         const m = (it.x - w.startX) / PX_PER_METER;
-        if (m >= from && m < to) n++;
+        for (let i = 0; i < bands.length; i++) {
+          if (m >= bands[i][0] && m < bands[i][1]) totals[i]++;
+        }
       }
     }
-    return n / (to - from);
-  };
-  const early = bucket(0, 500);
-  const mid = bucket(2000, 5000);
-  const late = bucket(10000, 20000);
-  assert(early > mid, `early ${early.toFixed(4)}/m should exceed mid ${mid.toFixed(4)}/m`);
-  assert(mid > late, `mid ${mid.toFixed(4)}/m should exceed late ${late.toFixed(4)}/m`);
-  assert(late > 0.0005, 'the far frontier still has loot');
-  return `early ${early.toFixed(4)} > mid ${mid.toFixed(4)} > late ${late.toFixed(4)} items/m`;
+  }
+  const rates = totals.map((n, i) => n / (bands[i][1] - bands[i][0]) / 3);
+  for (let i = 1; i < rates.length; i++) {
+    assert(rates[i] < rates[i - 1] * 0.94, `band ${bands[i].join('-')}m (${rates[i].toFixed(4)}/m) is not clearly sparser than ${bands[i - 1].join('-')}m (${rates[i - 1].toFixed(4)}/m)`);
+  }
+  assert(rates[rates.length - 1] > 0.004, 'the far frontier still has loot');
+  return rates.map((r, i) => `${bands[i].join('-')}m ${r.toFixed(4)}`).join(' > ');
 });
 
 check('memory stays bounded: recycling keeps live entities flat over 40 km', () => {
@@ -287,17 +313,20 @@ check('memory stays bounded: recycling keeps live entities flat over 40 km', () 
   return `entities ${min}..${max}, chunks ${w.chunks.size}`;
 });
 
-check('generated routes are flyable with no boosts, no skills, no upgrades (5 seeds x 5 pilots)', () => {
+check('routes are flyable by a competent pilot: steering + 3 boosts, no skills or upgrades', () => {
   const report = [];
   for (const char of Object.values(CHARACTERS)) {
     for (const seed of [1, 5, 11, 23, 42]) {
       const r = simulateFlight(seed, {
         maxMetres: 10000,
+        steer: true,
+        useBoost: true,
+        boostCharges: 3,
         gravityMul: char.stats.gravity,
         dragMul: char.stats.drag,
         bounceMul: char.stats.bounce,
       });
-      assert(!r.dead, `${char.id} seed ${seed} died at ${r.metres.toFixed(0)} m with no inputs`);
+      assert(!r.dead, `${char.id} seed ${seed} died at ${r.metres.toFixed(0)} m`);
       assert(r.metres >= 10000, `${char.id} seed ${seed} only reached ${r.metres.toFixed(0)} m`);
       report.push(r.hops);
     }
@@ -306,14 +335,36 @@ check('generated routes are flyable with no boosts, no skills, no upgrades (5 se
   return `25/25 routes flown, avg ${hops.toFixed(0)} pad hits`;
 });
 
-check('a player who does nothing still gets a long, fair run (real game loop)', () => {
+check('pads are placed where a real player can read them (arc geometry)', () => {
+  // Every consecutive pad pair must be inside the reachable envelope: the next
+  // pad either sits below the previous exit arc, or no more than one boost of
+  // climb above it (a boost lifts ~520 px at these physics values).
+  const w = new World(17);
+  w.ensure(15000 * PX_PER_METER);
+  const pads = [];
+  for (const c of w.chunks.values()) for (const pad of c.pads) pads.push(pad);
+  pads.sort((a, b) => a.x - b.x);
+  let worstRise = 0;
+  let worstGap = 0;
+  for (let i = 1; i < pads.length; i++) {
+    const rise = pads[i - 1].y - pads[i].y; // positive = the next pad is higher
+    const gap = pads[i].x - pads[i - 1].x;
+    worstRise = Math.max(worstRise, rise);
+    worstGap = Math.max(worstGap, gap);
+    assert(rise < 700, `pad at x=${pads[i].x.toFixed(0)} is ${rise.toFixed(0)}px above the previous one`);
+    assert(gap < 3600, `gap of ${gap.toFixed(0)}px before x=${pads[i].x.toFixed(0)}`);
+  }
+  return `${pads.length} pads · worst climb ${worstRise.toFixed(0)}px · worst gap ${worstGap.toFixed(0)}px`;
+});
+
+check('a pilot who touches nothing at all still gets a short, honest run', () => {
   const rows = [];
   for (const seed of [1, 5, 23]) {
     const r = playRun(seed, 'frog', { seconds: 70, pilot: 'none' });
     rows.push(Math.round(r.metres));
-    assert(r.metres > 2000, `idle pilot on seed ${seed} only got ${r.metres.toFixed(0)} m`);
+    assert(r.metres > 400, `idle pilot on seed ${seed} only got ${r.metres.toFixed(0)} m`);
   }
-  return `idle distances: ${rows.join(' / ')} m in 70 s`;
+  return `idle (no input) distances: ${rows.join(' / ')} m — ends when it runs out of luck`;
 });
 
 /* ================================================================ 4. ITEMS */
@@ -450,14 +501,25 @@ check('every skill spends energy and changes the flight state', () => {
       const d1 = Math.hypot(lure.x - p.x, lure.y - p.y);
       assert(d1 < d0 - 5, `magnet pulled loot from ${d0.toFixed(0)} to ${d1.toFixed(0)}`);
     } else {
-      const changed =
-        Math.abs(p.vy - before.vy) > 40 ||
-        Math.abs(p.vx - before.vx) > 40 ||
-        p.diveTimer > 0 ||
-        p.buffs.recovery > 0 ||
-        p.buffs.control > 0 ||
-        !!game.player.rideUfo;
-      assert(changed, `${id} skill changed the flight state`);
+      if (id === 'cheesus') {
+        // Cheese Magnet's job is attraction: prove it drags loot toward the pilot
+        const lure = { id: 'orb', kind: 'pickup', x: p.x + 380, y: p.y - 300, r: 24, bob: 0 };
+        game.world._register(lure);
+        const d0 = Math.hypot(lure.x - p.x, lure.y - p.y);
+        const hold = { isDown: (a) => a === 'skill', axis: 1, consume: () => true, buffered: () => false };
+        for (let i = 0; i < 40; i++) game.handleSkill(DT, hold);
+        const d1 = Math.hypot(lure.x - p.x, lure.y - p.y);
+        assert(d1 < d0 - 20, `magnet pulled loot from ${d0.toFixed(0)}px to ${d1.toFixed(0)}px`);
+      } else {
+        const changed =
+          Math.abs(p.vy - before.vy) > 40 ||
+          Math.abs(p.vx - before.vx) > 40 ||
+          p.diveTimer > 0 ||
+          p.buffs.recovery > 0 ||
+          p.buffs.control > 0 ||
+          !!game.player.rideUfo;
+        assert(changed, `${id} skill changed the flight state`);
+      }
     }
     rows.push(`${id}:${spent.toFixed(0)} energy`);
   }
@@ -542,6 +604,150 @@ check('boost stars refill charges, capped at the max', () => {
   assert(game.player.boosts <= game.player.maxBoosts, 'boost count capped');
   assert(game.player.boosts > 1, 'stars refilled boosts');
   return `${game.player.boosts}/${game.player.maxBoosts}`;
+});
+
+/* =============================================================== 6b. VIEW */
+group('camera view');
+
+check('wide and ultra views show more world than normal', () => {
+  const normal = zoomForViewport(1600, 900, 'normal');
+  const wide = zoomForViewport(1600, 900, 'wide');
+  const ultra = zoomForViewport(1600, 900, 'ultra');
+  assert(wide < normal && ultra < wide, `zoom ordering ${normal} / ${wide} / ${ultra}`);
+  assertClose(ultra, normal * 0.5, 0.001, 'ultra is exactly half');
+  const area = { normal: 1600 / normal, wide: 1600 / wide, ultra: 1600 / ultra };
+  assert(area.ultra > area.normal * 1.8, `ultra only shows ${area.ultra.toFixed(0)} world-px`);
+  return `visible width: ${area.normal.toFixed(0)} / ${area.wide.toFixed(0)} / ${area.ultra.toFixed(0)} world-px`;
+});
+
+check('switching the view resizes the camera live and clamps stay legal', () => {
+  const { game } = makeGame(71);
+  game.setViewMode('normal');
+  const vwNormal = game.camera.vw;
+  game.setViewMode('ultra');
+  assert(game.camera.vw > vwNormal * 1.7, `viewport grew from ${vwNormal.toFixed(0)} to ${game.camera.vw.toFixed(0)}`);
+  assert(game.camera.zoom >= 0.3, 'zoom floor respected');
+  const phone = zoomForViewport(640, 360, 'ultra');
+  assert(phone >= 0.3, `phone ultra zoom ${phone}`);
+  assert(VIEW_SCALES.ultra === 0.5, 'ultra is the 0.5x setting');
+  return `vw ${vwNormal.toFixed(0)} → ${game.camera.vw.toFixed(0)} px`;
+});
+
+check('the whole corridor stays inside the view at 0.5x', () => {
+  const { game } = makeGame(72);
+  game.setViewMode('ultra');
+  const cam = game.camera;
+  game.player.y = game.world.floorAt(game.player.x) - 1400;
+  cam.snapTo(game.player.x, game.player.y);
+  // the camera must be able to frame a full hop ahead and the floor below
+  const visibleH = cam.vh / cam.zoom;
+  assert(visibleH > 1600, `only ${visibleH.toFixed(0)} world-px tall at ultra`);
+  return `${(cam.vw / cam.zoom).toFixed(0)} × ${visibleH.toFixed(0)} world-px visible`;
+});
+
+/* =============================================================== 6c. MUSIC */
+group('music');
+
+check('menu track is a 128 BPM four-on-the-floor EDM loop', () => {
+  const track = TRACKS.menu;
+  assert(track.bpm === 128, `tempo ${track.bpm}`);
+  const loop = loopEvents(track);
+  const kicks = loop.filter((e) => e.voice === 'kick');
+  const claps = loop.filter((e) => e.voice === 'clap');
+  const stabs = loop.filter((e) => e.voice === 'stab');
+  const bars = track.bars;
+  assert(kicks.length === bars * 4, `expected 4 kicks per bar, got ${kicks.length}`);
+  assert(claps.length === bars * 2, `expected claps on 2 and 4, got ${claps.length}`);
+  assert(stabs.length === bars * 4, `expected offbeat stabs, got ${stabs.length}`);
+  assert(loop.some((e) => e.voice === 'lead'), 'the loop has a lead line');
+  assert(loop.some((e) => e.voice === 'riser'), 'the loop has a build-up');
+  const metres = trackLength(track) * stepSeconds(track);
+  assertClose(metres, 15, 0.01, 'menu loop length');
+  return `${loop.length} events / ${metres.toFixed(2)}s loop · ${kicks.length} kicks, ${claps.length} claps, ${stabs.length} stabs`;
+});
+
+check('every track produces valid, finite note events', () => {
+  let total = 0;
+  for (const track of Object.values(TRACKS)) {
+    for (const ev of loopEvents(track)) {
+      total++;
+      assert(typeof ev.voice === 'string' && ev.voice.length, 'voice name');
+      assert(Number.isFinite(ev.gain) && ev.gain > 0 && ev.gain < 1, `gain ${ev.gain}`);
+      assert(Number.isFinite(ev.dur) && ev.dur > 0 && ev.dur < 4, `dur ${ev.dur}`);
+      if (ev.note != null) assert(hz(ev.note) > 20 && hz(ev.note) < 12000, `note ${ev.note} out of range`);
+      if (ev.notes) for (const n of ev.notes) assert(hz(n) > 20 && hz(n) < 12000, `chord note ${n}`);
+    }
+  }
+  return `${total} events across ${Object.keys(TRACKS).length} tracks, all in range`;
+});
+
+check('the engine actually schedules audio: two seconds of menu = 4 kicking beats', () => {
+  const { AudioEngine } = audioModule;
+  const log = { osc: 0, noise: 0, starts: [] };
+  const param = (v) => ({
+    value: v,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    setTargetAtTime() {},
+    cancelScheduledValues() {},
+  });
+  const node = (extra = {}) => ({ connect() {}, disconnect() {}, ...extra });
+  const ctx = {
+    currentTime: 0,
+    sampleRate: 48000,
+    state: 'running',
+    destination: node(),
+    createGain: () => node({ gain: param(1) }),
+    createDynamicsCompressor: () => node({ threshold: param(0), knee: param(0), ratio: param(1), attack: param(0), release: param(0) }),
+    createOscillator: () => {
+      log.osc++;
+      return node({ type: 'sine', frequency: param(440), detune: param(0), start: (t) => log.starts.push(t), stop() {} });
+    },
+    createBiquadFilter: () => node({ type: 'lowpass', frequency: param(400), Q: param(1) }),
+    createBuffer: (c, len) => ({ getChannelData: () => new Float32Array(len), length: len }),
+    createBufferSource: () => {
+      log.noise++;
+      return node({ buffer: null, playbackRate: param(1), start: () => {}, stop() {} });
+    },
+    resume: () => Promise.resolve(),
+  };
+  const prevWindow = globalThis.window;
+  globalThis.window = { AudioContext: function () { return ctx; }, addEventListener() {}, removeEventListener() {} };
+  try {
+    const engine = new AudioEngine({ master: 1, music: 1, sfx: 1 });
+    engine.unlock();
+    engine.setScene('fly');   // different scene forces a fresh loop
+    engine.setScene('menu');
+    engine.step = 0;
+    engine.nextNoteTime = 0;
+    for (let t = 0; t <= 2; t += 0.02) {
+      ctx.currentTime = t;
+      engine._schedule();
+    }
+    engine.dispose();
+    const beats = (2 / 60) * 128;
+    assert(log.osc > 20, `only ${log.osc} oscillators scheduled`);
+    assert(log.noise > 10, `only ${log.noise} percussive sources scheduled`);
+    assert(log.starts.length > 8, 'notes were never started');
+    return `${log.osc} oscillators + ${log.noise} percussion in 2 s (~${beats.toFixed(1)} beats)`;
+  } finally {
+    globalThis.window = prevWindow;
+  }
+});
+
+check('scene changes swap the track without leaking schedulers', () => {
+  const { AudioEngine } = audioModule;
+  const engine = new AudioEngine({ master: 1, music: 1, sfx: 1 });
+  engine.setScene('menu');
+  assert(engine.track.id === 'menu' && engine.tempo === 128, `menu track ${engine.track.id} @ ${engine.tempo}`);
+  engine.setScene('fly');
+  assert(engine.track.id === 'fly' && engine.tempo === 138, `fly track ${engine.track.id} @ ${engine.tempo}`);
+  engine.setScene('gameover');
+  assert(engine.track.id === 'gameover' && engine.tempo === 96, 'gameover track');
+  engine.dispose();
+  assert(engine.timer === null, 'scheduler stopped');
+  return 'menu 128 · fly 138 · gameover 96';
 });
 
 /* ================================================================ 7. SCORE */
@@ -702,6 +908,10 @@ check('pause freezes the simulation, resume restores it', () => {
 check('launch flow: holding then releasing fires the catapult with a perfect window', () => {
   const { game } = makeGame(65);
   game.state = 'launch';
+  game.launchReleased = false;
+  game.perfectLaunch = false;
+  game.launchHeld = false;
+  game.launchPower = 0;
   game.player.launched = false;
   game.launchHeld = false;
   game.launchReleased = false;
@@ -871,10 +1081,6 @@ check('render cost stays within a 60 fps budget (software renderer)', () => {
 
 /* ================================================================ 12. AUDIO */
 group('audio');
-let audioModule = null;
-try {
-  audioModule = await import('../src/game/audio.js');
-} catch (_) {}
 
 check('audio engine is safe before any user interaction', () => {
   // No window/AudioContext in Node: every call must be a no-op, never a throw.

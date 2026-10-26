@@ -348,7 +348,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
 .map-track i { position: absolute; top: -6px; width: 6px; height: 24px; background: #fff; border-radius: 3px; box-shadow: 0 0 10px #fff; }
 
 /* ------------------------------------------------------------ touch + misc */
-/* Touch canvas to boost; steer with two buttons, keep skill separate. */
+/* Only steering and skill remain on Android; touching the unobstructed canvas boosts.
+   Keep hit targets usable at 50% while saving GPU time on weak phones. */
 #game { touch-action: none; }
 .touch { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 .tbtn { position: relative; contain: layout style; -webkit-backdrop-filter: none; }
@@ -481,6 +482,73 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   white-space: nowrap;
 }
 .newtab-hint a:hover { filter: brightness(1.08); }
+
+/* ================== Compact responsive menu + reliably visible animation ================== */
+/* Preserve the two-column selection buttons on narrow screens. The previous
+   portrait breakpoint stacked them, forcing the start button below the fold. */
+.screen--menu { overflow-y: auto; overscroll-behavior: contain; }
+.screen--menu .menu-wrap { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .screen--menu .menu-row { flex-direction: row; }
+  .screen--menu .menu-wrap { gap: 3px; margin: auto 0; }
+  .screen--menu .brand { width: min(310px, 58vw); }
+  .screen--menu .menu-buttons { gap: 6px; margin-top: 4px; max-width: 420px; }
+  .screen--menu .menu-buttons .btn {
+    min-width: 0; padding: 8px 8px; border-radius: 12px; border-width: 2px;
+    font-size: 12px; box-shadow: 0 3px 0 #120a24;
+  }
+  .screen--menu .menu-buttons .btn small { font-size: 9px; }
+  .screen--menu .menu-footer { margin-top: 5px; gap: 5px; }
+  .screen--menu .chip { padding: 4px 7px; font-size: 10px; letter-spacing: 0; }
+  .screen--menu .tagline { letter-spacing: 1px; }
+}
+@media (max-height: 700px) {
+  .screen--menu .brand { width: min(410px, 52vw); }
+  .screen--menu .menu-buttons { margin-top: 4px; gap: 6px; }
+  .screen--menu .menu-footer { margin-top: 6px; }
+  .screen--menu .menu-buttons .btn { padding-block: 8px; }
+}
+/* Android landscape: logo/character on the left, functional compact menu on
+   the right. No buttons are hidden and all actions retain their DOM targets. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 620px) {
+  .screen--menu { padding: 6px max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left)); }
+  .screen--menu .menu-wrap {
+    display: grid;
+    grid-template-columns: minmax(115px, .7fr) minmax(0, 1.65fr);
+    grid-template-rows: minmax(0, auto) auto;
+    column-gap: 12px; row-gap: 2px; align-items: center;
+    max-width: 980px; margin: auto;
+  }
+  .screen--menu .brand {
+    grid-column: 1; grid-row: 1; width: 100%; max-width: 260px;
+    justify-self: center; align-self: center; filter: drop-shadow(0 6px 10px rgba(0,0,0,.4));
+  }
+  .screen--menu .tagline { display: none; }
+  .screen--menu .menu-buttons {
+    grid-column: 2; grid-row: 1; width: 100%; max-width: none;
+    gap: 5px; margin: 0;
+  }
+  .screen--menu .menu-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .screen--menu .menu-buttons .btn {
+    min-width: 0; min-height: 36px; padding: 4px 6px;
+    border-width: 2px; border-radius: 10px; box-shadow: 0 2px 0 #120a24;
+    font-size: clamp(10px, 1.75vw, 13px); gap: 1px;
+  }
+  .screen--menu .menu-buttons .btn small { font-size: clamp(7px, 1.1vw, 9px); line-height: 1.1; }
+  .screen--menu .menu-footer {
+    grid-column: 1 / -1; grid-row: 2; margin-top: 3px;
+    gap: 4px; flex-wrap: wrap; justify-content: center;
+  }
+  .screen--menu .chip { padding: 2px 7px; font-size: 9px; border-width: 1px; line-height: 1.4; }
+  .screen--menu .credits { display: none; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 340px) {
+  .screen--menu .menu-wrap { column-gap: 6px; }
+  .screen--menu .menu-buttons { gap: 3px; }
+  .screen--menu .menu-buttons .btn { min-height: 28px; padding: 2px 5px; }
+  .screen--menu .menu-buttons .btn small { display: none; }
+  .screen--menu .chip { padding: 1px 5px; font-size: 8px; }
+}
 
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23160b33'/%3E%3Cpath d='M50 14l10 24 26 2-20 17 7 26-23-14-23 14 7-26-20-17 26-2z' fill='%23ffd93b'/%3E%3C/svg%3E" />
@@ -1100,7 +1168,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         music: 0.55,
         sfx: 0.85,
         quality: "balanced",
-        view: "wide",
+        view: "ultra",
+        ultraDefaultApplied: true,
         lang: "vi",
         touch: "auto",
         touchScale: 0.5,
@@ -1182,7 +1251,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       s.settings.music = finite(st.music, 0.55, 0, 1);
       s.settings.sfx = finite(st.sfx, 0.85, 0, 1);
       s.settings.quality = Object.prototype.hasOwnProperty.call(QUALITY, st.quality) ? st.quality : "balanced";
-      s.settings.view = ["normal", "wide", "ultra"].includes(st.view) ? st.view : "wide";
+      s.settings.view = ["normal", "wide", "ultra"].includes(st.view) ? st.view : "ultra";
+      s.settings.ultraDefaultApplied = bool(st.ultraDefaultApplied, false);
       s.settings.lang = ["vi", "en"].includes(st.lang) ? st.lang : "vi";
       s.settings.touch = ["auto", "on", "off"].includes(st.touch) ? st.touch : "auto";
       s.settings.touchScale = finite(st.touchScale, 0.5, 0.5, 1.5);
@@ -7825,6 +7895,11 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   var canvas = $("#game");
   var ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
   var save = new SaveStore(safeStorage());
+  if (!save.data.settings.ultraDefaultApplied) {
+    if (save.data.settings.view === "wide") save.data.settings.view = "ultra";
+    save.data.settings.ultraDefaultApplied = true;
+    save.save();
+  }
   var mobileTouch = !!(window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0);
   setLang(save.data.settings.lang || detectLang(), { persist: false });
   save.data.settings.lang = getLang();
@@ -7939,80 +8014,101 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     $("#menuBest").textContent = formatMeters(save.data.records.distance);
     $("#menuPilot").textContent = CHARACTERS[save.data.selected].name;
   }
-  function drawLogoFrame() {
-    const lc = $("#logoCanvas");
+  let lastLogoPaint = -1;
+  function drawLogoFrame(now = performance.now() / 1000) {
+    // The vector logo is expensive at 720×420; 30 Hz is smooth for a subtle
+    // rocking animation and avoids repeated blur/shadow work on Android.
+    if (mobileTouch && now - lastLogoPaint < 1 / 30) return;
+    lastLogoPaint = now;
+    const lc = $('#logoCanvas');
     if (!lc) return;
-    const lctx = lc.getContext("2d");
+    const lctx = lc.getContext('2d');
     const w = lc.width;
     const h = lc.height;
     lctx.clearRect(0, 0, w, h);
     lctx.save();
     lctx.translate(w / 2, h / 2 + 6);
-    drawLogo(lctx, 0, 0, 1.28, performance.now() / 1e3);
+    drawLogo(lctx, 0, 0, 1.28, now);
     lctx.restore();
   }
-  function renderBackdrop(t2) {
+  
+  /** Animated menu backdrop drawn on the main canvas. */
+  function renderBackdrop(t) {
     ctx.save();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const region = regionAt(0);
-    drawSky(ctx, cssW, cssH, "lab", t2, 1);
-    const zoom = clamp(Math.min(cssW / 1340, cssH / 760), 0.55, 1.4);
-    const cam = { x: t2 * 70, y: -180, zoom, vw: cssW / zoom, vh: cssH / zoom };
+    const q = qualitySettings();
+    drawSky(ctx, cssW, cssH, 'lab', t, q.parallax);
+    const zoom = clamp(Math.min(cssW / 1250, cssH / 740), 0.55, 1.25);
+    const cam = { x: t * 85, y: -180, zoom, vw: cssW / zoom, vh: cssH / zoom };
+  
+    // Parallax draws in SCREEN coordinates and applies its own transforms.
+    // Never nest it inside the animated foreground camera: that doubled zoom
+    // and pushed clouds/scenery out of view, especially in mobile landscape.
+    drawParallax(ctx, cam, cssW, cssH, 'lab', t, q.parallax);
+  
+    // The foreground lives on a looping, viewport-relative track. It cannot
+    // drift out of existence when the menu stays open for several minutes.
     ctx.save();
-    ctx.translate(cssW / 2 - cam.x * zoom, cssH / 2 - cam.y * zoom);
+    ctx.translate(cssW / 2, cssH / 2);
     ctx.scale(zoom, zoom);
-    drawParallax(ctx, cam, cssW, cssH, "lab", t2, 1);
+    const vw = cssW / zoom;
+    const vh = cssH / zoom;
+    const wrap = (v, range) => ((v % range) + range) % range;
     const floaters = [
-      { id: "orb", x: 240, y: -360, r: 34 },
-      { id: "super", x: 980, y: -620, r: 30 },
-      { id: "boostStar", x: 1620, y: -420, r: 40 },
-      { id: "coin", x: 640, y: -740, r: 22 }
+      { id: 'orb', x: 0.08, y: -0.28, speed: 27 },
+      { id: 'super', x: 0.68, y: -0.12, speed: -34 },
+      { id: 'boostStar', x: 0.40, y: 0.22, speed: 24 },
+      { id: 'coin', x: 0.92, y: 0.31, speed: -19 },
     ];
     for (const f of floaters) {
-      const x = f.x + Math.sin(t2 * 0.6 + f.x) * 30;
-      const y = f.y + Math.sin(t2 * 0.9 + f.x * 0.01) * 24;
+      const fx = -vw / 2 - 80 + wrap(f.x * vw + t * f.speed, vw + 160);
+      const fy = vh * f.y + Math.sin(t * 0.9 + f.x * 9) * 22;
       ctx.save();
-      ctx.translate(x, y);
-      drawItemArt(ctx, f.id, t2 + f.x, { scale: 1.1 });
+      ctx.translate(fx, fy);
+      ctx.rotate(Math.sin(t * 1.2 + f.x * 7) * 0.12);
+      drawItemArt(ctx, f.id, t + f.x * 9, { scale: 0.98 });
       ctx.restore();
     }
-    const px = 300 + t2 * 220 % (cssW / zoom + 900);
-    const py = -520 + Math.sin(t2 * 1.4) * 70;
+  
+    const px = -vw / 2 - 130 + wrap(t * 185, vw + 260);
+    const py = -vh * 0.23 + Math.sin(t * 1.4) * 40;
     ctx.save();
     ctx.translate(px, py);
-    ctx.rotate(Math.sin(t2 * 1.1) * 0.1);
+    ctx.rotate(Math.sin(t * 1.1) * 0.08);
     drawCharacter(ctx, save.data.selected, {
-      t: t2,
-      expr: "excited",
+      t,
+      expr: 'excited',
       look: 0.6,
       rot: 0.1,
       squash: 1,
       stretch: 1.04,
-      skill: 0.5 + Math.sin(t2 * 6) * 0.3,
+      skill: 0.5 + Math.sin(t * 6) * 0.3,
       mode: 0,
       facing: 1,
-      scale: 1.15
+      scale: 1.15,
     });
     ctx.restore();
     for (let i = 0; i < 5; i++) {
-      const k = (t2 * 2 + i * 0.2) % 1;
-      ctx.globalAlpha = (1 - k) * 0.4;
-      fillPath(ctx, () => ellipse(ctx, px - 60 - k * 120, py + 24 + Math.sin(i) * 10, 12 + k * 22, 10 + k * 18), "#ffe86b");
+      const k = wrap(t * 2 + i * 0.2, 1);
+      ctx.globalAlpha = (1 - k) * 0.36;
+      fillPath(ctx, () => ellipse(ctx, px - 60 - k * 120, py + 24 + Math.sin(i) * 10, 12 + k * 22, 10 + k * 18), '#ffe86b');
     }
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "rgba(10,26,24,0.35)";
+  
+    ctx.fillStyle = 'rgba(10,26,24,0.30)';
     ctx.beginPath();
-    const gy = 420;
-    ctx.moveTo(-500, gy + 400);
-    for (let x = -600; x < cssW / zoom + 800; x += 80) {
-      ctx.lineTo(x, gy + Math.sin(x * 4e-3) * 26);
+    const gy = vh * 0.48;
+    ctx.moveTo(-vw / 2 - 160, gy + 200);
+    for (let x = -vw / 2 - 160; x <= vw / 2 + 160; x += 80) {
+      ctx.lineTo(x, gy + Math.sin(x * 0.004 + t * 0.06) * 26);
     }
-    ctx.lineTo(cssW / zoom + 800, gy + 500);
+    ctx.lineTo(vw / 2 + 160, gy + 300);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
     ctx.restore();
   }
+  
   function buildCharacterCards() {
     const grid = $("#charGrid");
     if (grid.childElementCount) return;
@@ -8850,7 +8946,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       const t2 = now;
       if (uiState.screen === "menu" || uiState.screen === "characters" || uiState.screen === "records" || uiState.screen === "upgrades" || uiState.screen === "settings") {
         renderBackdrop(t2);
-        if (uiState.screen === "menu") drawLogoFrame();
+        if (uiState.screen === "menu") drawLogoFrame(t2);
         drawCharacterPortraits(t2);
         drawUpgradePortrait(t2);
       } else {
@@ -8866,7 +8962,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     if (mobileTouch && fps < 42 && save.data.settings.quality !== "low" || fps < 45 && save.data.settings.quality === "high") {
       save.data.settings.quality = mobileTouch ? "low" : "balanced";
       save.save();
-      game.setQuality("balanced");
+      game.setQuality(save.data.settings.quality);
       resize();
       toast(t("toast.autoQuality"), 1800, "#ffd93b");
     }

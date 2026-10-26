@@ -969,6 +969,31 @@ check('regions and combo tiers are localised too', () => {
   return `${lab} / ${labEn} · ${star} · ${combo}`;
 });
 
+check('the language still switches when storage is blocked (file://, private mode)', () => {
+  const prevLang = i18n.getLang();
+  const prevDesc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  // A blocked/opaque origin throws just for touching `localStorage`.
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get() {
+      throw new Error('SecurityError: localStorage is not available for opaque origins');
+    },
+  });
+  try {
+    i18n.setLang('en');
+    assert(i18n.getLang() === 'en', 'setLang did not apply with blocked storage');
+    i18n.setLang('vi');
+    assert(i18n.getLang() === 'vi', 'setLang did not switch back with blocked storage');
+    assert(i18n.detectLang() === 'vi', 'detectLang threw or returned garbage');
+    assert(i18n.t('menu.play') === 'CHƠI', 'translations stopped working');
+  } finally {
+    if (prevDesc) Object.defineProperty(globalThis, 'localStorage', prevDesc);
+    else delete globalThis.localStorage;
+    i18n.setLang(prevLang, { persist: false });
+  }
+  return 'setLang / detectLang survive a throwing localStorage';
+});
+
 check('the save file remembers the chosen language', () => {
   const storage = fakeStorage();
   const store = new SaveStore(storage);

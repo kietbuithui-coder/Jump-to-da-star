@@ -7,11 +7,13 @@
   "scripts": {
     "start": "node tools/serve.mjs",
     "dev": "node tools/serve.mjs",
-    "test": "node test/run.mjs && node test/browser.mjs",
+    "test": "node test/run.mjs && node test/browser.mjs && node test/standalone.mjs",
     "test:core": "node test/run.mjs",
     "test:browser": "node test/browser.mjs",
     "art": "node tools/render.mjs",
-    "test:sweep": "node test/sweep.mjs 20"
+    "test:sweep": "node test/sweep.mjs 20",
+    "build:web": "node tools/build-web.mjs",
+    "test:web": "node test/standalone.mjs"
   },
   "keywords": [
     "game",

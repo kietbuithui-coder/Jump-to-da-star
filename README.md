@@ -22,6 +22,12 @@ In-game: press **`F`** or tap the **⛶** button — there is also a **⛶ FULLS
 On phones it also requests a landscape lock. The HUD reserves that button column, so the coin pill
 and boost stars never draw underneath it.
 
+**One file, no server.** `npm run build:web` writes **`jump-to-the-star.html`** — the whole game
+(HTML + CSS + every module) inlined into a single 338 KB file. Double-click it, email it, drop it in
+a chat or on any static host: it opens straight from disk with no server and no network at all
+(the module graph is flattened, so the usual `file://` ES-module CORS failure cannot happen). If the
+browser blocks `localStorage` there, the game still runs — it just stops remembering progress.
+
 **Open it in its own tab.** Inside an embed preview the game lives in an iframe, where the
 Fullscreen API is refused. The **↗ NEW TAB** button in the menu opens `?standalone=1` in a fresh
 browser tab; the game also drops a plain **open in new tab** link under the menu for a few seconds,
@@ -169,11 +175,13 @@ src/art/                    art primitives, 5 character rigs, item art, world sc
 src/main.js                 boot, screen router, menus, upgrade lab, records, settings, loop wiring
 test/run.mjs                75 engine/gameplay/i18n/voice checks (headless, real modules)
 test/browser.mjs            24 DOM/boot/UI checks (jsdom + stubbed canvas)
+test/standalone.mjs         6 checks on the single-file build (jsdom, file:// URL)
 test/sweep.mjs              deep fairness sweep: 50 seeded routes to 20 km
 test/autopilot.mjs          reference pilot used to prove generated maps are flyable
 test/play.mjs               headless run harness, can dump gameplay frames
 tools/serve.mjs             dependency-free static server
 tools/render.mjs            offline art preview renderer (@napi-rs/canvas)
+tools/build-web.mjs         bundles everything into jump-to-the-star.html (one shareable file)
 ```
 
 Engine facts: fixed **1/120 s** timestep decoupled from render rate, object pooling for particles
@@ -204,12 +212,16 @@ npm i --no-save @napi-rs/canvas jsdom   # only if you want to run the tests
 ```
 
 ```bash
-node test/run.mjs        # 75/75 passed
+node test/run.mjs        # 76/76 passed
 node test/browser.mjs    # 24/24 passed
+node test/standalone.mjs # 6/6 single-file build checks
 node test/sweep.mjs 20   # 50/50 routes to 20 km
 ```
 
-### `test/run.mjs` — 75 checks, 75 passing
+`npm run build:web` needs esbuild once (`npm i --no-save esbuild`); the game itself still has zero
+runtime dependencies.
+
+### `test/run.mjs` — 76 checks, 76 passing
 
 | Group | What is actually asserted |
 | --- | --- |
@@ -228,7 +240,7 @@ node test/sweep.mjs 20   # 50/50 routes to 20 km
 | rendering (4) | all five regions render with a **balanced** save/restore stack (this caught two real leaks); launch/fly/dead all render; 640×360 and 2560×1440 render; average frame cost |
 | audio (2) | the engine is a safe no-op before user interaction; every SFX name used in code exists in the synth (29 names → 45 voices) |
 | voices (4) | "ey"/"ooh" are layered formant voices (≥3 voices × 3 band-pass formants + a breath layer + vibrato), not beeps; the crowd scales and caps at 4 voices; a broken WebAudio graph cannot throw into the game loop; a perfect launch really fires the "ey" cheer and a tier-3 combo really fires the "ooh" crowd |
-| i18n (7) | 149 EN/VI pairs with no missing side; 82 markup `data-i18n` keys all resolve; switching language changes what the player reads (CHƠI/PLAY, LÒ XO SINH HỌC/BIO SPRING); all 5 pilots, 20 items and 8 upgrades carry Vietnamese text; EN and VI use identical `{placeholders}`; region names and combo tiers are localised; the save remembers the language and repairs garbage back to `vi` |
+| i18n (8) | 149 EN/VI pairs with no missing side; 82 markup `data-i18n` keys all resolve; switching language changes what the player reads (CHƠI/PLAY, LÒ XO SINH HỌC/BIO SPRING); all 5 pilots, 20 items and 8 upgrades carry Vietnamese text; EN and VI use identical `{placeholders}`; region names and combo tiers are localised; the save remembers the language and repairs garbage back to `vi`; switching still works when `localStorage` throws (opaque origin / `file://` / private mode) — this was a real bug: the blocked write aborted the re-render |
 | performance (1) | simulation + streaming costs **0.86 ms of CPU per wall-clock second** (7 µs/step) |
 | wiring (7) | every DOM id the code looks up exists; every `data-action` is handled; every relative import resolves (57); game logic never touches `document`/`localStorage`; tuning constants all live in config; no emoji/placeholder art |
 
@@ -270,6 +282,19 @@ simulation frozen; death writes coins, records, history and the save, and shows 
 screen; a fresh `SaveStore` reloads that save intact; quality switching re-renders; no uncaught
 errors. The pause **journey map** is checked for Vietnamese region names (`PHÒNG PHÓNG SHAPI`,
 `Đang bay`) as well.
+
+### `test/standalone.mjs` — 6 checks, 6 passing
+
+Loads **`jump-to-the-star.html`** from a `file://` URL in jsdom with scripts enabled and proves the
+shared file really runs with no server: the bundle executes, the menu paints, the language cycles
+VI → EN → VI (with `localStorage` blocked, which is what a `file://` origin does), no raw
+`menu.*` keys or `undefined` reach the visible markup, a full run starts and flies, and nothing
+throws.
+
+Building that file caught two build-level bugs worth writing down: `String.replace` with a
+replacement *string* turns `$$` into `$` (the bundle's `$$(selector)` helper collapsed into `$` and
+boot died on `canvas.getContext is not a function`), and `typeof localStorage` itself throws on an
+opaque origin, so even the feature test has to be inside `try`.
 
 I also eyeballed a software-rendered Vietnamese frame (`node test/play.mjs`, PNG dumped locally):
 `ĐIỂM 2,114`, `NĂNG LƯỢNG`, `KỸ NĂNG` and the minimap label `ĐỒNG NÂY` all draw with correct

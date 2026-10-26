@@ -225,13 +225,37 @@ export const LANGS = ['vi', 'en'];
 let lang = 'vi';
 const listeners = [];
 
+/**
+ * Reading `localStorage` itself throws a SecurityError on an opaque origin
+ * (`file://` in some browsers, private mode, a sandboxed iframe). Touching the
+ * global at all can throw, so even the feature test has to live inside try/catch.
+ */
+function readStoredLang() {
+  try {
+    const store = typeof localStorage !== 'undefined' ? localStorage : null;
+    if (!store) return null;
+    const stored = store.getItem('jtts.lang');
+    return LANGS.includes(stored) ? stored : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeStoredLang(value) {
+  try {
+    const store = typeof localStorage !== 'undefined' ? localStorage : null;
+    if (store) store.setItem('jtts.lang', value);
+    return true;
+  } catch (_) {
+    return false; // storage blocked: the choice still applies for this session
+  }
+}
+
 export function detectLang() {
   try {
     const nav = typeof navigator !== 'undefined' ? navigator.language || '' : '';
-    if (typeof localStorage !== 'undefined') {
-      const stored = localStorage.getItem('jtts.lang');
-      if (LANGS.includes(stored)) return stored;
-    }
+    const stored = readStoredLang();
+    if (stored) return stored;
     if (nav.toLowerCase().startsWith('vi')) return 'vi';
   } catch (_) {}
   return 'vi'; // the lab is in Ho Chi Minh City
@@ -244,13 +268,13 @@ export function getLang() {
 export function setLang(next, { persist = true } = {}) {
   const value = LANGS.includes(next) ? next : 'vi';
   lang = value;
-  if (persist && typeof localStorage !== 'undefined') {
-    try {
-      localStorage.setItem('jtts.lang', value);
-    } catch (_) {}
-  }
+  // Never let a blocked storage write stop the UI from re-rendering: the
+  // language must change even when saving it is impossible.
+  if (persist) writeStoredLang(value);
   if (typeof document !== 'undefined') {
-    document.documentElement.lang = value;
+    try {
+      document.documentElement.lang = value;
+    } catch (_) {}
     applyI18n(document);
   }
   for (const fn of listeners) {

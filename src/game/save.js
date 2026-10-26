@@ -70,7 +70,8 @@ export function defaultSave() {
       music: 0.55,
       sfx: 0.85,
       quality: 'balanced',
-      view: 'wide',
+      view: 'ultra',
+      ultraDefaultApplied: true,
       lang: 'vi',
       touch: 'auto',
       touchScale: 0.5,
@@ -168,7 +169,8 @@ export function sanitizeSave(raw) {
     s.settings.quality = Object.prototype.hasOwnProperty.call(QUALITY, st.quality)
       ? st.quality
       : 'balanced';
-    s.settings.view = ['normal', 'wide', 'ultra'].includes(st.view) ? st.view : 'wide';
+    s.settings.view = ['normal', 'wide', 'ultra'].includes(st.view) ? st.view : 'ultra';
+    s.settings.ultraDefaultApplied = bool(st.ultraDefaultApplied, false);
     s.settings.lang = ['vi', 'en'].includes(st.lang) ? st.lang : 'vi';
     s.settings.touch = ['auto', 'on', 'off'].includes(st.touch) ? st.touch : 'auto';
     s.settings.touchScale = finite(st.touchScale, 0.5, 0.5, 1.5);

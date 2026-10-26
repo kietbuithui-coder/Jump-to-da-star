@@ -110,6 +110,23 @@ function makeGame(seed = 3, charId = 'frog', upgrades = {}) {
 const DT = 1 / 120;
 const WORLD_SKY = { min: 620, max: 1100 };
 
+
+check('Ultra view is the default, and legacy Wide saves can be migrated once', () => {
+  const fresh = defaultSave();
+  assert(fresh.settings.view === 'ultra', 'fresh install must start Ultra');
+  assert(fresh.settings.ultraDefaultApplied === true, 'new installs marked migrated');
+  const previous = defaultSave();
+  previous.settings.view = 'wide';
+  delete previous.settings.ultraDefaultApplied;
+  const legacy = sanitizeSave(previous);
+  assert(legacy.settings.ultraDefaultApplied === false, 'legacy preference detected');
+  assert(legacy.settings.view === 'wide', 'sanitisation preserves stored value before migration');
+  const custom = defaultSave();
+  custom.settings.view = 'normal';
+  assert(sanitizeSave(custom).settings.view === 'normal', 'chosen Normal view stays available');
+  return 'ultra default, legacy detection, custom view preserved';
+});
+
 /* ============================================================== 1. PHYSICS */
 group('physics');
 

@@ -473,3 +473,70 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   white-space: nowrap;
 }
 .newtab-hint a:hover { filter: brightness(1.08); }
+
+/* ================== Compact responsive menu + reliably visible animation ================== */
+/* Preserve the two-column selection buttons on narrow screens. The previous
+   portrait breakpoint stacked them, forcing the start button below the fold. */
+.screen--menu { overflow-y: auto; overscroll-behavior: contain; }
+.screen--menu .menu-wrap { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .screen--menu .menu-row { flex-direction: row; }
+  .screen--menu .menu-wrap { gap: 3px; margin: auto 0; }
+  .screen--menu .brand { width: min(310px, 58vw); }
+  .screen--menu .menu-buttons { gap: 6px; margin-top: 4px; max-width: 420px; }
+  .screen--menu .menu-buttons .btn {
+    min-width: 0; padding: 8px 8px; border-radius: 12px; border-width: 2px;
+    font-size: 12px; box-shadow: 0 3px 0 #120a24;
+  }
+  .screen--menu .menu-buttons .btn small { font-size: 9px; }
+  .screen--menu .menu-footer { margin-top: 5px; gap: 5px; }
+  .screen--menu .chip { padding: 4px 7px; font-size: 10px; letter-spacing: 0; }
+  .screen--menu .tagline { letter-spacing: 1px; }
+}
+@media (max-height: 700px) {
+  .screen--menu .brand { width: min(410px, 52vw); }
+  .screen--menu .menu-buttons { margin-top: 4px; gap: 6px; }
+  .screen--menu .menu-footer { margin-top: 6px; }
+  .screen--menu .menu-buttons .btn { padding-block: 8px; }
+}
+/* Android landscape: logo/character on the left, functional compact menu on
+   the right. No buttons are hidden and all actions retain their DOM targets. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 620px) {
+  .screen--menu { padding: 6px max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left)); }
+  .screen--menu .menu-wrap {
+    display: grid;
+    grid-template-columns: minmax(115px, .7fr) minmax(0, 1.65fr);
+    grid-template-rows: minmax(0, auto) auto;
+    column-gap: 12px; row-gap: 2px; align-items: center;
+    max-width: 980px; margin: auto;
+  }
+  .screen--menu .brand {
+    grid-column: 1; grid-row: 1; width: 100%; max-width: 260px;
+    justify-self: center; align-self: center; filter: drop-shadow(0 6px 10px rgba(0,0,0,.4));
+  }
+  .screen--menu .tagline { display: none; }
+  .screen--menu .menu-buttons {
+    grid-column: 2; grid-row: 1; width: 100%; max-width: none;
+    gap: 5px; margin: 0;
+  }
+  .screen--menu .menu-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .screen--menu .menu-buttons .btn {
+    min-width: 0; min-height: 36px; padding: 4px 6px;
+    border-width: 2px; border-radius: 10px; box-shadow: 0 2px 0 #120a24;
+    font-size: clamp(10px, 1.75vw, 13px); gap: 1px;
+  }
+  .screen--menu .menu-buttons .btn small { font-size: clamp(7px, 1.1vw, 9px); line-height: 1.1; }
+  .screen--menu .menu-footer {
+    grid-column: 1 / -1; grid-row: 2; margin-top: 3px;
+    gap: 4px; flex-wrap: wrap; justify-content: center;
+  }
+  .screen--menu .chip { padding: 2px 7px; font-size: 9px; border-width: 1px; line-height: 1.4; }
+  .screen--menu .credits { display: none; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 340px) {
+  .screen--menu .menu-wrap { column-gap: 6px; }
+  .screen--menu .menu-buttons { gap: 3px; }
+  .screen--menu .menu-buttons .btn { min-height: 28px; padding: 2px 5px; }
+  .screen--menu .menu-buttons .btn small { display: none; }
+  .screen--menu .chip { padding: 1px 5px; font-size: 8px; }
+}

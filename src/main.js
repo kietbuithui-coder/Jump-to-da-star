@@ -27,6 +27,12 @@ const canvas = $('#game');
 const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
 const save = new SaveStore(safeStorage());
+// Migrate the old default Wide view once, without overwriting later user choices.
+if (!save.data.settings.ultraDefaultApplied) {
+  if (save.data.settings.view === 'wide') save.data.settings.view = 'ultra';
+  save.data.settings.ultraDefaultApplied = true;
+  save.save();
+}
 const mobileTouch = !!(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
 // Language lives outside the save too, so it applies before the first paint.
 setLang(save.data.settings.lang || detectLang(), { persist: false });
@@ -155,7 +161,12 @@ function refreshMenu() {
   $('#menuPilot').textContent = CHARACTERS[save.data.selected].name;
 }
 
-function drawLogoFrame() {
+let lastLogoPaint = -1;
+function drawLogoFrame(now = performance.now() / 1000) {
+  // The vector logo is expensive at 720×420; 30 Hz is smooth for a subtle
+  // rocking animation and avoids repeated blur/shadow work on Android.
+  if (mobileTouch && now - lastLogoPaint < 1 / 30) return;
+  lastLogoPaint = now;
   const lc = $('#logoCanvas');
   if (!lc) return;
   const lctx = lc.getContext('2d');
@@ -164,7 +175,7 @@ function drawLogoFrame() {
   lctx.clearRect(0, 0, w, h);
   lctx.save();
   lctx.translate(w / 2, h / 2 + 6);
-  drawLogo(lctx, 0, 0, 1.28, performance.now() / 1000);
+  drawLogo(lctx, 0, 0, 1.28, now);
   lctx.restore();
 }
 
@@ -172,35 +183,45 @@ function drawLogoFrame() {
 function renderBackdrop(t) {
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const region = regionAt(0);
-  drawSky(ctx, cssW, cssH, 'lab', t, 1);
-  const zoom = clamp(Math.min(cssW / 1340, cssH / 760), 0.55, 1.4);
-  const cam = { x: t * 70, y: -180, zoom, vw: cssW / zoom, vh: cssH / zoom };
+  const q = qualitySettings();
+  drawSky(ctx, cssW, cssH, 'lab', t, q.parallax);
+  const zoom = clamp(Math.min(cssW / 1250, cssH / 740), 0.55, 1.25);
+  const cam = { x: t * 85, y: -180, zoom, vw: cssW / zoom, vh: cssH / zoom };
+
+  // Parallax draws in SCREEN coordinates and applies its own transforms.
+  // Never nest it inside the animated foreground camera: that doubled zoom
+  // and pushed clouds/scenery out of view, especially in mobile landscape.
+  drawParallax(ctx, cam, cssW, cssH, 'lab', t, q.parallax);
+
+  // The foreground lives on a looping, viewport-relative track. It cannot
+  // drift out of existence when the menu stays open for several minutes.
   ctx.save();
-  ctx.translate(cssW / 2 - cam.x * zoom, cssH / 2 - cam.y * zoom);
+  ctx.translate(cssW / 2, cssH / 2);
   ctx.scale(zoom, zoom);
-  drawParallax(ctx, cam, cssW, cssH, 'lab', t, 1);
-  // floating loot
+  const vw = cssW / zoom;
+  const vh = cssH / zoom;
+  const wrap = (v, range) => ((v % range) + range) % range;
   const floaters = [
-    { id: 'orb', x: 240, y: -360, r: 34 },
-    { id: 'super', x: 980, y: -620, r: 30 },
-    { id: 'boostStar', x: 1620, y: -420, r: 40 },
-    { id: 'coin', x: 640, y: -740, r: 22 },
+    { id: 'orb', x: 0.08, y: -0.28, speed: 27 },
+    { id: 'super', x: 0.68, y: -0.12, speed: -34 },
+    { id: 'boostStar', x: 0.40, y: 0.22, speed: 24 },
+    { id: 'coin', x: 0.92, y: 0.31, speed: -19 },
   ];
   for (const f of floaters) {
-    const x = f.x + Math.sin(t * 0.6 + f.x) * 30;
-    const y = f.y + Math.sin(t * 0.9 + f.x * 0.01) * 24;
+    const fx = -vw / 2 - 80 + wrap(f.x * vw + t * f.speed, vw + 160);
+    const fy = vh * f.y + Math.sin(t * 0.9 + f.x * 9) * 22;
     ctx.save();
-    ctx.translate(x, y);
-    drawItemArt(ctx, f.id, t + f.x, { scale: 1.1 });
+    ctx.translate(fx, fy);
+    ctx.rotate(Math.sin(t * 1.2 + f.x * 7) * 0.12);
+    drawItemArt(ctx, f.id, t + f.x * 9, { scale: 0.98 });
     ctx.restore();
   }
-  // the pilot doing a show-off lap
-  const px = 300 + ((t * 220) % (cssW / zoom + 900));
-  const py = -520 + Math.sin(t * 1.4) * 70;
+
+  const px = -vw / 2 - 130 + wrap(t * 185, vw + 260);
+  const py = -vh * 0.23 + Math.sin(t * 1.4) * 40;
   ctx.save();
   ctx.translate(px, py);
-  ctx.rotate(Math.sin(t * 1.1) * 0.1);
+  ctx.rotate(Math.sin(t * 1.1) * 0.08);
   drawCharacter(ctx, save.data.selected, {
     t,
     expr: 'excited',
@@ -214,22 +235,21 @@ function renderBackdrop(t) {
     scale: 1.15,
   });
   ctx.restore();
-  // exhaust puffs
   for (let i = 0; i < 5; i++) {
-    const k = (t * 2 + i * 0.2) % 1;
-    ctx.globalAlpha = (1 - k) * 0.4;
+    const k = wrap(t * 2 + i * 0.2, 1);
+    ctx.globalAlpha = (1 - k) * 0.36;
     fillPath(ctx, () => ellipse(ctx, px - 60 - k * 120, py + 24 + Math.sin(i) * 10, 12 + k * 22, 10 + k * 18), '#ffe86b');
   }
   ctx.globalAlpha = 1;
-  // ground silhouette
-  ctx.fillStyle = 'rgba(10,26,24,0.35)';
+
+  ctx.fillStyle = 'rgba(10,26,24,0.30)';
   ctx.beginPath();
-  const gy = 420;
-  ctx.moveTo(-500, gy + 400);
-  for (let x = -600; x < cssW / zoom + 800; x += 80) {
-    ctx.lineTo(x, gy + Math.sin(x * 0.004) * 26);
+  const gy = vh * 0.48;
+  ctx.moveTo(-vw / 2 - 160, gy + 200);
+  for (let x = -vw / 2 - 160; x <= vw / 2 + 160; x += 80) {
+    ctx.lineTo(x, gy + Math.sin(x * 0.004 + t * 0.06) * 26);
   }
-  ctx.lineTo(cssW / zoom + 800, gy + 500);
+  ctx.lineTo(vw / 2 + 160, gy + 300);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -1144,7 +1164,7 @@ const loop = new Loop({
     const t = now;
     if (uiState.screen === 'menu' || uiState.screen === 'characters' || uiState.screen === 'records' || uiState.screen === 'upgrades' || uiState.screen === 'settings') {
       renderBackdrop(t);
-      if (uiState.screen === 'menu') drawLogoFrame();
+      if (uiState.screen === 'menu') drawLogoFrame(t);
       drawCharacterPortraits(t);
       drawUpgradePortrait(t);
     } else {
@@ -1163,7 +1183,7 @@ loop.onSecond = (fps) => {
     // Auto-degrade on slow phones (balanced → low as needed).
     save.data.settings.quality = mobileTouch ? 'low' : 'balanced';
     save.save();
-    game.setQuality('balanced');
+    game.setQuality(save.data.settings.quality);
     resize();
     toast(t('toast.autoQuality'), 1800, '#ffd93b');
   }

@@ -540,3 +540,12 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   .screen--menu .menu-buttons .btn small { display: none; }
   .screen--menu .chip { padding: 1px 5px; font-size: 8px; }
 }
+
+/* Small screens: four view presets must remain accessible rather than clip. */
+#setView { flex-wrap: wrap; justify-content: flex-end; max-width: min(100%, 500px); }
+#setView button { flex: 1 1 auto; min-width: 80px; padding: 7px 10px; }
+@media (max-width: 700px) {
+  .settings-row:has(#setView) { align-items: flex-start; }
+  #setView { max-width: 76%; gap: 2px; }
+  #setView button { min-width: 74px; padding: 5px 7px; font-size: 9px; }
+}

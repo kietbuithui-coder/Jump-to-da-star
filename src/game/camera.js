@@ -98,7 +98,7 @@ export class Camera {
   }
 }
 
-export const VIEW_SCALES = { normal: 1, wide: 0.72, ultra: 0.5 };
+export const VIEW_SCALES = { normal: 1, wide: 0.72, ultra: 0.5, hyper: 0.25 };
 
 export function zoomForViewport(cssW, cssH, view = 'normal') {
   // Show at least ~1450 world-px horizontally and ~820 vertically so incoming
@@ -106,5 +106,5 @@ export function zoomForViewport(cssW, cssH, view = 'normal') {
   // out so a skilled player can read two or three hops ahead.
   const scale = VIEW_SCALES[view] ?? 1;
   const z = Math.min(cssW / 1480, cssH / 800) * scale;
-  return clamp(z, 0.3, 1.45);
+  return clamp(z, view === 'hyper' ? 0.065 : 0.3, 1.45);
 }

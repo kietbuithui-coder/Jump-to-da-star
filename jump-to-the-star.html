@@ -550,6 +550,15 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   .screen--menu .chip { padding: 1px 5px; font-size: 8px; }
 }
 
+/* Small screens: four view presets must remain accessible rather than clip. */
+#setView { flex-wrap: wrap; justify-content: flex-end; max-width: min(100%, 500px); }
+#setView button { flex: 1 1 auto; min-width: 80px; padding: 7px 10px; }
+@media (max-width: 700px) {
+  .settings-row:has(#setView) { align-items: flex-start; }
+  #setView { max-width: 76%; gap: 2px; }
+  #setView button { min-width: 74px; padding: 5px 7px; font-size: 9px; }
+}
+
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23160b33'/%3E%3Cpath d='M50 14l10 24 26 2-20 17 7 26-23-14-23 14 7-26-20-17 26-2z' fill='%23ffd93b'/%3E%3C/svg%3E" />
 </head>
@@ -669,7 +678,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       <div class="settings-row">
         <span data-i18n="set.view"></span>
         <div class="segmented" id="setView">
-          <button data-v="normal" data-i18n="set.view.normal"></button><button data-v="wide" data-i18n="set.view.wide"></button><button data-v="ultra" data-i18n="set.view.ultra"></button>
+          <button data-v="normal" data-i18n="set.view.normal"></button><button data-v="wide" data-i18n="set.view.wide"></button><button data-v="ultra" data-i18n="set.view.ultra"></button><button data-v="hyper" data-i18n="set.view.hyper"></button>
         </div>
       </div>
       <div class="settings-row">
@@ -1251,7 +1260,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       s.settings.music = finite(st.music, 0.55, 0, 1);
       s.settings.sfx = finite(st.sfx, 0.85, 0, 1);
       s.settings.quality = Object.prototype.hasOwnProperty.call(QUALITY, st.quality) ? st.quality : "balanced";
-      s.settings.view = ["normal", "wide", "ultra"].includes(st.view) ? st.view : "ultra";
+      s.settings.view = ["normal", "wide", "ultra", "hyper"].includes(st.view) ? st.view : "ultra";
       s.settings.ultraDefaultApplied = bool(st.ultraDefaultApplied, false);
       s.settings.lang = ["vi", "en"].includes(st.lang) ? st.lang : "vi";
       s.settings.touch = ["auto", "on", "off"].includes(st.touch) ? st.touch : "auto";
@@ -1449,6 +1458,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     "set.view.normal": { en: "NORMAL", vi: "THƯỜNG" },
     "set.view.wide": { en: "WIDE", vi: "RỘNG" },
     "set.view.ultra": { en: "ULTRA 0.5×", vi: "SIÊU RỘNG 0.5×" },
+    "set.view.hyper": { en: "HYPER 0.25×", vi: "SIÊU SIÊU RỘNG 0.25×" },
     "set.graphics": { en: "GRAPHICS", vi: "ĐỒ HOẠ" },
     "set.q.low": { en: "LOW", vi: "THẤP" },
     "set.q.balanced": { en: "BALANCED", vi: "CÂN BẰNG" },
@@ -1717,24 +1727,45 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       const ny = pad.ny ?? -1;
       const dPrev = (x0 - pad.x) * nx + (y0 - pad.y) * ny;
       const dNow = (p.x - pad.x) * nx + (p.y - pad.y) * ny;
-      if (!(dNow < dPrev)) continue;
+      if (!(dNow < dPrev)) continue; // must be moving toward/through the pad face
       const vn = p.vx * nx + p.vy * ny;
       if (vn >= 0) continue;
       const cos = Math.cos(pad.angle || 0);
       const sin = Math.sin(pad.angle || 0);
       const along = (p.x - pad.x) * cos + (p.y - pad.y) * sin;
-      const halfW = pad.w / 2 + radius * 0.3;
-      if (Math.abs(along) > halfW) continue;
-      const catchDepth = pad.catch ?? 0;
-      const surface = radius + 4;
-      if (dNow > surface + catchDepth) continue;
+      const mushroom = pad.id === 'mushroom';
+      // The mushroom cap is drawn ~32 px above pad.y. Require an actual swept
+      // crossing of that visible top, not the support pad's 170px magnet zone.
+      // Test the X position AT IMPACT, not at the end of a fast physics step.
+      const surface = radius + (mushroom ? 32 : 4);
+      if (mushroom) {
+        // Swept circle against the visible cap. Reject the old invisible
+        // 170 px catch field, but retain genuine side and fast-frame contacts.
+        const bottom = -radius - 8;
+        if (dNow > surface || dPrev < bottom) continue;
+        const span = dPrev - dNow;
+        const first = Math.max(0, Math.min(1, (dPrev - surface) / span));
+        const last = Math.max(0, Math.min(1, (dPrev - bottom) / span));
+        const previousAlong = (x0 - pad.x) * cos + (y0 - pad.y) * sin;
+        const stepAlong = along - previousAlong;
+        const nearestT = Math.max(first, Math.min(last, stepAlong ? -previousAlong / stepAlong : first));
+        const closestAlong = previousAlong + stepAlong * nearestT;
+        if (Math.abs(closestAlong) > (pad.w ?? 250) / 2 + radius * 1.1) continue;
+      } else {
+        const halfW = pad.w / 2 + radius * 0.3;
+        if (Math.abs(along) > halfW) continue;
+        const catchDepth = pad.catch ?? 0;
+        if (dNow > surface + catchDepth) continue;
+      }
       const depth = Math.max(0, surface - dNow);
       if (!best || depth < best.depth) {
-        best = { pad, nx, ny, depth, along };
+        best = { pad, nx, ny, depth, along, surface };
       }
     }
     return best;
   }
+
+
 
   // src/game/items.js
   var ITEM_DEFS = {
@@ -2243,7 +2274,10 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       const def = ITEM_DEFS[padId];
       let tilt = rng.chance(0.34 * (1 - easing)) ? rng.range(-0.15, 0.15) : 0;
       const padX = sim.x;
-      const padY = sim.y;
+      // In the upper sky, the exact mushroom cap is more restrictive than the
+    // former 170px catch zone; lower the support cap slightly so the physics
+    // reference route remains reachable without an invisible bounce.
+    const padY = sim.y + (padId === 'mushroom' && metres > 4500 ? 120 : 0);
       const width = def.width * (0.94 + rng.next() * 0.28) * (1 + easing * 0.4);
       let nx = Math.sin(tilt);
       let ny = -Math.cos(tilt);
@@ -3148,11 +3182,11 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       return this.vh / this.zoom;
     }
   };
-  var VIEW_SCALES = { normal: 1, wide: 0.72, ultra: 0.5 };
+  var VIEW_SCALES = { normal: 1, wide: 0.72, ultra: 0.5, hyper: 0.25 };
   function zoomForViewport(cssW2, cssH2, view = "normal") {
     const scale = VIEW_SCALES[view] ?? 1;
     const z = Math.min(cssW2 / 1480, cssH2 / 800) * scale;
-    return clamp(z, 0.3, 1.45);
+    return clamp(z, view === "hyper" ? 0.065 : 0.3, 1.45);
   }
 
   // src/game/game.js
@@ -3286,6 +3320,10 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         rot: 0,
         animT: 0,
         animState: "idle",
+        landTimer: 0,
+        jumpTimer: 0,
+        landPulse: 0,
+        takeoffPulse: 0,
         expression: "happy",
         diveTimer: 0,
         diveActive: false,
@@ -3398,6 +3436,9 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       const power = auto ? 1 : Math.max(0.62, this.launchPower);
       const perfect = this.perfectLaunch;
       p.launched = true;
+      p.jumpTimer = 0.3;
+      p.takeoffPulse = 1;
+      p.animState = "jump";
       p.vx = LAUNCH.vx * s.launchMul * (0.82 + 0.18 * power) + (perfect ? LAUNCH.perfectVxBonus : 0);
       p.vy = LAUNCH.vy * s.launchMul * (0.8 + 0.22 * power) - (perfect ? LAUNCH.perfectVyBonus : 0);
       p.charge = power;
@@ -3576,18 +3617,37 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     }
     updateAnimation(dt) {
       const p = this.player;
-      const falling = p.vy > 120;
-      const rising = p.vy < -120;
-      p.animState = p.diveTimer > 0 ? "dive" : falling ? "fall" : rising ? "fly" : "fly";
-      if (p.hurt > 0) p.animState = "hit";
+      p.landTimer = Math.max(0, p.landTimer - dt);
+      p.jumpTimer = Math.max(0, p.jumpTimer - dt);
+      p.landPulse = Math.max(0, p.landPulse - dt * 5);
+      p.takeoffPulse = Math.max(0, p.takeoffPulse - dt * 3.5);
+      if (p.hurt > 0) p.animState = 'hit';
+      else if (p.landTimer > 0) p.animState = 'land';
+      else if (p.boostPulse > 0.3) p.animState = 'boost';
+      else if (p.diveTimer > 0) p.animState = 'dive';
+      else if (p.skillPulse > 0.45) p.animState = 'skill';
+      else if (p.vy > 160) p.animState = 'fall';
+      else if (p.vy < -230) p.animState = p.jumpTimer > 0 ? 'jump' : 'rise';
+      else p.animState = 'glide';
+
       const targetRot = clamp(p.vy / 2600, -0.5, 0.7) + (p.vx > 0 ? 0.06 : 0);
       p.rot += (targetRot - p.rot) * damp(9, dt);
-      const stretch = clamp(1 + Math.abs(p.vy) / 5200, 0.9, 1.35);
-      p.stretch += (stretch - p.stretch) * damp(8, dt);
-      p.squash += (1 / p.stretch - p.squash) * damp(8, dt);
+      const speedStretch = clamp(1 + Math.abs(p.vy) / 6200, 1, 1.25);
+      const targetStretch = p.animState === 'land' ? 0.78
+        : p.animState === 'jump' || p.animState === 'boost' ? 1.19
+        : p.animState === 'fall' ? 0.95 : speedStretch;
+      const targetSquash = p.animState === 'land' ? 1.27
+        : p.animState === 'jump' || p.animState === 'boost' ? 0.89
+        : p.animState === 'fall' ? 1.04 : 1;
+      p.stretch += (targetStretch - p.stretch) * damp(12, dt);
+      p.squash += (targetSquash - p.squash) * damp(12, dt);
       p.facing = p.vx < -40 ? -1 : 1;
-      p.expression = p.hurt > 0 ? "ouch" : p.diveTimer > 0 ? "panic" : p.vy > 900 ? "panic" : p.vy < -600 ? "excited" : "happy";
+      p.expression = p.hurt > 0 ? 'ouch' : p.diveTimer > 0 ? 'panic'
+        : p.animState === 'fall' ? 'panic'
+        : p.animState === 'jump' || p.animState === 'boost' ? 'excited' : 'happy';
     }
+
+
     updateTrail(dt) {
       const p = this.player;
       if (p.vx > 900 && this.particles.budget > 0.2) {
@@ -3909,12 +3969,16 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       const impactSpeed = Math.hypot(p.vx, p.vy);
       p.vx = out.vx;
       p.vy = out.vy;
-      const surf = PHYS.collideRadius + 5;
+      const surf = (contact.surface ?? PHYS.collideRadius + 4) + 1;
       const d = (p.x - pad.x) * nx + (p.y - pad.y) * ny;
       p.x += nx * (surf - d);
       p.y += ny * (surf - d);
       p.squash = 1.25;
       p.stretch = 0.82;
+      p.landTimer = 0.15;
+      p.jumpTimer = 0.34;
+      p.landPulse = 1;
+      p.takeoffPulse = 1;
       p.lastPadAt = 0;
       this.runStats.springs++;
       if (isRescue) this.runStats.nets = (this.runStats.nets || 0) + 1;
@@ -4104,6 +4168,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       else p.vy -= BOOST.extraUp * power;
       p.vx = Math.min(PHYS.maxVx, p.vx + BOOST.vxImpulse * power);
       p.boostPulse = 1;
+      p.takeoffPulse = 1;
+      p.jumpTimer = 0.25;
       p.squash = 0.8;
       p.stretch = 1.25;
       p.lastBoostAt = 0;
@@ -5363,7 +5429,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       ctx2.lineTo(-16, -20);
       ctx2.closePath();
     }, linear(ctx2, -50, 0, 0, 40, [[0, "#ffffff"], [1, "#e6e2d2"]]), { width: OUT });
-    const legLen = springing ? 46 : 30;
+    const legLen = springing ? 46 : s.pose === "land" ? 17 : s.pose === "jump" || s.pose === "boost" ? 46 : 30;
     const coilCount = springing ? 7 : 4;
     spring(ctx2, -10, 24, legLen, springing ? 15 : 10, coilCount, springing ? "#c6f24e" : "#9fb98a");
     spring(ctx2, 20, 24, legLen, springing ? 15 : 10, coilCount, springing ? "#c6f24e" : "#9fb98a");
@@ -5455,7 +5521,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     const t2 = s.t;
     const expr = s.expr;
     const thrust = s.skill;
-    const flap = Math.sin(t2 * 16) * 0.35;
+    const flapSpeed = s.pose === "jump" || s.pose === "boost" ? 24 : s.pose === "fall" ? 10 : 16;
+    const flap = Math.sin(t2 * flapSpeed) * (s.pose === "jump" || s.pose === "fall" ? 0.55 : 0.35);
     for (const side of [-1, 1]) {
       ctx2.save();
       ctx2.translate(side * 34, 12 + (side > 0 ? 6 : -2));
@@ -5848,7 +5915,9 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       blink: s.blink ? 1 : 0,
       skill: s.skill || 0,
       mode: s.mode || 0,
-      scale: s.scale || 1
+      scale: s.scale || 1,
+      pose: s.pose || "idle",
+      poseTime: s.poseTime || 0
     };
     const draw = DRAWERS[id] || drawFrog;
     ctx2.save();
@@ -5857,6 +5926,17 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     const sy = scale * (s.stretch || 1) / (s.squash || 1);
     ctx2.scale(sx * 0.98, sy * 0.98);
     if (s.rot) ctx2.rotate(s.rot);
+    if (st.pose === "jump" || st.pose === "boost") {
+      ctx2.rotate(Math.sin(st.poseTime * 9) * 0.025);
+      ctx2.translate(0, -3);
+    } else if (st.pose === "fall") {
+      ctx2.rotate(Math.sin(st.poseTime * 6) * 0.045);
+      ctx2.translate(0, 2);
+    } else if (st.pose === "land") {
+      ctx2.translate(0, 9);
+    } else if (st.pose === "glide" || st.pose === "rise") {
+      ctx2.rotate(Math.sin(st.poseTime * 2.8) * 0.017);
+    }
     draw(ctx2, st);
     ctx2.restore();
   }
@@ -7835,8 +7915,34 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       ctx2.restore();
     }
     if (p.invuln > 0 && Math.floor(t2 * 16) % 2 === 0) ctx2.globalAlpha = 0.55;
+    // A visual contact ring + short ascent streak, tied to real collision events.
+    if (p.landPulse > 0) {
+      ctx2.save();
+      ctx2.globalAlpha = p.landPulse * 0.65;
+      ctx2.strokeStyle = '#fff1bd';
+      ctx2.lineWidth = 4;
+      ctx2.beginPath();
+      ctx2.ellipse(0, 48, 34 + (1 - p.landPulse) * 75, 10 + (1 - p.landPulse) * 18, 0, 0, Math.PI * 2);
+      ctx2.stroke();
+      ctx2.restore();
+    }
+    if (p.takeoffPulse > 0 && p.animState !== 'land') {
+      ctx2.save();
+      ctx2.globalAlpha = p.takeoffPulse * 0.55;
+      ctx2.strokeStyle = '#dff6ff';
+      ctx2.lineWidth = 3;
+      for (const side of [-1, 1]) {
+        ctx2.beginPath();
+        ctx2.moveTo(side * 30, 40 + (1 - p.takeoffPulse) * 25);
+        ctx2.lineTo(side * 46, 78 + (1 - p.takeoffPulse) * 65);
+        ctx2.stroke();
+      }
+      ctx2.restore();
+    }
     drawCharacter(ctx2, def, {
       t: t2,
+      pose: p.animState,
+      poseTime: p.animT,
       expr: p.expression,
       look: 0.45,
       blink,
@@ -8777,7 +8883,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         else if (uiState.screen === null && game.state === "launch") game.fireLaunch();
       }
       if (e.code === "KeyZ" && !uiState.screen) {
-        const order = ["normal", "wide", "ultra"];
+        const order = ["normal", "wide", "ultra", "hyper"];
         const next = order[(order.indexOf(save.data.settings.view) + 1) % order.length];
         save.data.settings.view = next;
         game.setViewMode(next);

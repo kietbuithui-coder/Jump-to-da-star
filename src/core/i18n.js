@@ -97,6 +97,7 @@ const DICT = {
   'set.view.normal': { en: 'NORMAL', vi: 'THƯỜNG' },
   'set.view.wide': { en: 'WIDE', vi: 'RỘNG' },
   'set.view.ultra': { en: 'ULTRA 0.5×', vi: 'SIÊU RỘNG 0.5×' },
+  'set.view.hyper': { en: 'HYPER 0.25×', vi: 'SIÊU SIÊU RỘNG 0.25×' },
   'set.graphics': { en: 'GRAPHICS', vi: 'ĐỒ HOẠ' },
   'set.q.low': { en: 'LOW', vi: 'THẤP' },
   'set.q.balanced': { en: 'BALANCED', vi: 'CÂN BẰNG' },

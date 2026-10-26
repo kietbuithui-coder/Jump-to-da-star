@@ -180,8 +180,34 @@ function drawPlayer(ctx, game, t) {
   }
   if (p.invuln > 0 && Math.floor(t * 16) % 2 === 0) ctx.globalAlpha = 0.55;
 
+  // A visual contact ring + short ascent streak, tied to real collision events.
+  if (p.landPulse > 0) {
+    ctx.save();
+    ctx.globalAlpha = p.landPulse * 0.65;
+    ctx.strokeStyle = '#fff1bd';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(0, 48, 34 + (1 - p.landPulse) * 75, 10 + (1 - p.landPulse) * 18, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (p.takeoffPulse > 0 && p.animState !== 'land') {
+    ctx.save();
+    ctx.globalAlpha = p.takeoffPulse * 0.55;
+    ctx.strokeStyle = '#dff6ff';
+    ctx.lineWidth = 3;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 30, 40 + (1 - p.takeoffPulse) * 25);
+      ctx.lineTo(side * 46, 78 + (1 - p.takeoffPulse) * 65);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   drawCharacter(ctx, def, {
     t,
+    pose: p.animState,
+    poseTime: p.animT,
     expr: p.expression,
     look: 0.45,
     blink,

@@ -979,7 +979,7 @@ function bindInput() {
       else if (uiState.screen === null && game.state === 'launch') game.fireLaunch();
     }
     if (e.code === 'KeyZ' && !uiState.screen) {
-      const order = ['normal', 'wide', 'ultra'];
+      const order = ['normal', 'wide', 'ultra', 'hyper'];
       const next = order[(order.indexOf(save.data.settings.view) + 1) % order.length];
       save.data.settings.view = next;
       game.setViewMode(next);

@@ -169,7 +169,7 @@ export function sanitizeSave(raw) {
     s.settings.quality = Object.prototype.hasOwnProperty.call(QUALITY, st.quality)
       ? st.quality
       : 'balanced';
-    s.settings.view = ['normal', 'wide', 'ultra'].includes(st.view) ? st.view : 'ultra';
+    s.settings.view = ['normal', 'wide', 'ultra', 'hyper'].includes(st.view) ? st.view : 'ultra';
     s.settings.ultraDefaultApplied = bool(st.ultraDefaultApplied, false);
     s.settings.lang = ['vi', 'en'].includes(st.lang) ? st.lang : 'vi';
     s.settings.touch = ['auto', 'on', 'off'].includes(st.touch) ? st.touch : 'auto';

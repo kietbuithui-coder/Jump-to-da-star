@@ -163,6 +163,10 @@ export class Game {
       rot: 0,
       animT: 0,
       animState: 'idle',
+      landTimer: 0,
+      jumpTimer: 0,
+      landPulse: 0,
+      takeoffPulse: 0,
       expression: 'happy',
       diveTimer: 0,
       diveActive: false,
@@ -286,6 +290,9 @@ export class Game {
     const power = auto ? 1 : Math.max(0.62, this.launchPower);
     const perfect = this.perfectLaunch;
     p.launched = true;
+    p.jumpTimer = 0.3;
+    p.takeoffPulse = 1;
+    p.animState = 'jump';
     p.vx = LAUNCH.vx * s.launchMul * (0.82 + 0.18 * power) + (perfect ? LAUNCH.perfectVxBonus : 0);
     p.vy = LAUNCH.vy * s.launchMul * (0.8 + 0.22 * power) - (perfect ? LAUNCH.perfectVyBonus : 0);
     p.charge = power;
@@ -491,17 +498,34 @@ export class Game {
 
   updateAnimation(dt) {
     const p = this.player;
-    const falling = p.vy > 120;
-    const rising = p.vy < -120;
-    p.animState = p.diveTimer > 0 ? 'dive' : falling ? 'fall' : rising ? 'fly' : 'fly';
+    p.landTimer = Math.max(0, p.landTimer - dt);
+    p.jumpTimer = Math.max(0, p.jumpTimer - dt);
+    p.landPulse = Math.max(0, p.landPulse - dt * 5);
+    p.takeoffPulse = Math.max(0, p.takeoffPulse - dt * 3.5);
     if (p.hurt > 0) p.animState = 'hit';
+    else if (p.landTimer > 0) p.animState = 'land';
+    else if (p.boostPulse > 0.3) p.animState = 'boost';
+    else if (p.diveTimer > 0) p.animState = 'dive';
+    else if (p.skillPulse > 0.45) p.animState = 'skill';
+    else if (p.vy > 160) p.animState = 'fall';
+    else if (p.vy < -230) p.animState = p.jumpTimer > 0 ? 'jump' : 'rise';
+    else p.animState = 'glide';
+
     const targetRot = clamp(p.vy / 2600, -0.5, 0.7) + (p.vx > 0 ? 0.06 : 0);
     p.rot += (targetRot - p.rot) * damp(9, dt);
-    const stretch = clamp(1 + Math.abs(p.vy) / 5200, 0.9, 1.35);
-    p.stretch += (stretch - p.stretch) * damp(8, dt);
-    p.squash += (1 / p.stretch - p.squash) * damp(8, dt);
+    const speedStretch = clamp(1 + Math.abs(p.vy) / 6200, 1, 1.25);
+    const targetStretch = p.animState === 'land' ? 0.78
+      : p.animState === 'jump' || p.animState === 'boost' ? 1.19
+      : p.animState === 'fall' ? 0.95 : speedStretch;
+    const targetSquash = p.animState === 'land' ? 1.27
+      : p.animState === 'jump' || p.animState === 'boost' ? 0.89
+      : p.animState === 'fall' ? 1.04 : 1;
+    p.stretch += (targetStretch - p.stretch) * damp(12, dt);
+    p.squash += (targetSquash - p.squash) * damp(12, dt);
     p.facing = p.vx < -40 ? -1 : 1;
-    p.expression = p.hurt > 0 ? 'ouch' : p.diveTimer > 0 ? 'panic' : p.vy > 900 ? 'panic' : p.vy < -600 ? 'excited' : 'happy';
+    p.expression = p.hurt > 0 ? 'ouch' : p.diveTimer > 0 ? 'panic'
+      : p.animState === 'fall' ? 'panic'
+      : p.animState === 'jump' || p.animState === 'boost' ? 'excited' : 'happy';
   }
 
   updateTrail(dt) {
@@ -818,12 +842,16 @@ export class Game {
     p.vx = out.vx;
     p.vy = out.vy;
     // place the player just above the surface, along the pad's normal
-    const surf = PHYS.collideRadius + 5;
+    const surf = (contact.surface ?? PHYS.collideRadius + 4) + 1;
     const d = (p.x - pad.x) * nx + (p.y - pad.y) * ny;
     p.x += nx * (surf - d);
     p.y += ny * (surf - d);
     p.squash = 1.25;
     p.stretch = 0.82;
+    p.landTimer = 0.15;
+    p.jumpTimer = 0.34;
+    p.landPulse = 1;
+    p.takeoffPulse = 1;
     p.lastPadAt = 0;
     this.runStats.springs++;
     if (isRescue) this.runStats.nets = (this.runStats.nets || 0) + 1;
@@ -1025,6 +1053,8 @@ export class Game {
     else p.vy -= BOOST.extraUp * power;
     p.vx = Math.min(PHYS.maxVx, p.vx + BOOST.vxImpulse * power);
     p.boostPulse = 1;
+    p.takeoffPulse = 1;
+    p.jumpTimer = 0.25;
     p.squash = 0.8;
     p.stretch = 1.25;
     p.lastBoostAt = 0;

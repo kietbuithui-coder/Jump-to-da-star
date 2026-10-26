@@ -127,8 +127,10 @@ function drawFrog(ctx, s) {
     ctx.closePath();
   }, linear(ctx, -50, 0, 0, 40, [[0, '#ffffff'], [1, '#e6e2d2']]), { width: OUT });
 
+  // Coil legs compress on touchdown and extend as the jump takes off.
+  // This is true frame-by-frame character animation, not only a screen flash.
   // legs
-  const legLen = springing ? 46 : 30;
+  const legLen = springing ? 46 : s.pose === 'land' ? 17 : s.pose === 'jump' || s.pose === 'boost' ? 46 : 30;
   const coilCount = springing ? 7 : 4;
   spring(ctx, -10, 24, legLen, springing ? 15 : 10, coilCount, springing ? '#c6f24e' : '#9fb98a');
   spring(ctx, 20, 24, legLen, springing ? 15 : 10, coilCount, springing ? '#c6f24e' : '#9fb98a');
@@ -238,7 +240,8 @@ function drawChicken(ctx, s) {
   const t = s.t;
   const expr = s.expr;
   const thrust = s.skill;
-  const flap = Math.sin(t * 16) * 0.35;
+  const flapSpeed = s.pose === 'jump' || s.pose === 'boost' ? 24 : s.pose === 'fall' ? 10 : 16;
+  const flap = Math.sin(t * flapSpeed) * (s.pose === 'jump' || s.pose === 'fall' ? 0.55 : 0.35);
 
   // engines
   for (const side of [-1, 1]) {
@@ -702,6 +705,8 @@ export function drawCharacter(ctx, id, s = {}) {
     skill: s.skill || 0,
     mode: s.mode || 0,
     scale: s.scale || 1,
+    pose: s.pose || 'idle',
+    poseTime: s.poseTime || 0,
   };
   const draw = DRAWERS[id] || drawFrog;
   ctx.save();
@@ -710,6 +715,18 @@ export function drawCharacter(ctx, id, s = {}) {
   const sy = scale * (s.stretch || 1) / (s.squash || 1 || 1);
   ctx.scale(sx * 0.98, sy * 0.98);
   if (s.rot) ctx.rotate(s.rot);
+  // Responsive leaning/tumbling and a single, brief upward leg tuck.
+  if (st.pose === 'jump' || st.pose === 'boost') {
+    ctx.rotate(Math.sin(st.poseTime * 9) * 0.025);
+    ctx.translate(0, -3);
+  } else if (st.pose === 'fall') {
+    ctx.rotate(Math.sin(st.poseTime * 6) * 0.045);
+    ctx.translate(0, 2);
+  } else if (st.pose === 'land') {
+    ctx.translate(0, 9);
+  } else if (st.pose === 'glide' || st.pose === 'rise') {
+    ctx.rotate(Math.sin(st.poseTime * 2.8) * 0.017);
+  }
   draw(ctx, st);
   ctx.restore();
 }

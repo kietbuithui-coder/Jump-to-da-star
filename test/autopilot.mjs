@@ -98,7 +98,9 @@ export function simulateFlight(seed, opts = {}) {
       if (out) {
         p.vx = out.vx;
         p.vy = out.vy;
-        const push = radius + 5 - (radius + 4 - depth);
+        const d = (p.x - pad.x) * nx + (p.y - pad.y) * ny;
+        const surface = contact.surface ?? radius + 4;
+        const push = surface + 1 - d;
         p.x += nx * push;
         p.y += ny * push;
         hops++;

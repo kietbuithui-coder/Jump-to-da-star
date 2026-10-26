@@ -202,6 +202,26 @@ check('character bounce stat changes the arc (frog bounces higher than chicken)'
   assert(a.vy < b.vy - 100, `frog ${a.vy.toFixed(0)} vs chicken ${b.vy.toFixed(0)}`);
 });
 
+
+check('mushroom contact matches the visible cap, never the old catch field', () => {
+  const m = { id: 'mushroom', x: 0, y: 0, angle: 0, w: 250, nx: 0, ny: -1, catch: 170 };
+  const r = PHYS.collideRadius;
+  const far = padContact({x: 0, y: -140, vx: 0, vy: 700}, 0, -151, r, [m]);
+  assert(!far, 'no automatic bounce 140px above mushroom');
+  const side = padContact({x: 170, y: -64, vx: 0, vy: 800}, 170, -85, r, [m]);
+  assert(!side, 'outside visible cap stays inactive');
+  const underside = padContact({x: 0, y: -65, vx: 0, vy: -600}, 0, -51, r, [m]);
+  assert(!underside, 'underside cannot trigger');
+  const hit = padContact({x: 0, y: -60, vx: 0, vy: 700}, 0, -82, r, [m]);
+  assert(hit && hit.pad === m, 'swept impact on cap triggers exactly once');
+  assertClose(hit.surface, r + 32, 0.001, 'cap and collider are aligned');
+  const alreadyBelow = padContact({x: 0, y: 60, vx: 0, vy: 700}, 0, 50, r, [m]);
+  assert(!alreadyBelow, 'player below the cap cannot be teleported upward');
+  const diagonal = padContact({x: 180, y: -60, vx: 2400, vy: 800}, 60, -82, r, [m]);
+  assert(diagonal, 'sweep catches high-speed touch even if end-of-step is outside');
+  return 'cap crossing, lateral precision, underside, fast diagonal';
+});
+
 /* ================================================================ 3. WORLD */
 group('world generation');
 
@@ -636,6 +656,20 @@ check('wide and ultra views show more world than normal', () => {
   const area = { normal: 1600 / normal, wide: 1600 / wide, ultra: 1600 / ultra };
   assert(area.ultra > area.normal * 1.8, `ultra only shows ${area.ultra.toFixed(0)} world-px`);
   return `visible width: ${area.normal.toFixed(0)} / ${area.wide.toFixed(0)} / ${area.ultra.toFixed(0)} world-px`;
+});
+
+check('hyper 0.25x view truly doubles Ultra sightline on desktop and phone', () => {
+  const normal = zoomForViewport(1600, 900, 'normal');
+  const ultra = zoomForViewport(1600, 900, 'ultra');
+  const hyper = zoomForViewport(1600, 900, 'hyper');
+  assertClose(hyper, normal * 0.25, 0.0001, 'desktop hyper 0.25x');
+  assertClose(hyper, ultra * 0.5, 0.0001, 'hyper half as close as Ultra');
+  const phone = zoomForViewport(640, 360, 'hyper');
+  assertClose(phone, Math.min(640 / 1480, 360 / 800) * 0.25, 0.0001, 'phone not clamped back to 0.30');
+  const s = defaultSave();
+  s.settings.view = 'hyper';
+  assert(sanitizeSave(s).settings.view === 'hyper', 'new view survives save reload');
+  return '0.25x desktop/Android and save roundtrip';
 });
 
 check('switching the view resizes the camera live and clamps stay legal', () => {

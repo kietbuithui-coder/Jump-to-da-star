@@ -220,7 +220,10 @@ export class World {
     const def = ITEM_DEFS[padId];
     let tilt = rng.chance(0.34 * (1 - easing)) ? rng.range(-0.15, 0.15) : 0;
     const padX = sim.x;
-    const padY = sim.y;
+    // In the upper sky, the exact mushroom cap is more restrictive than the
+    // former 170px catch zone; lower the support cap slightly so the physics
+    // reference route remains reachable without an invisible bounce.
+    const padY = sim.y + (padId === 'mushroom' && metres > 4500 ? 120 : 0);
     const width = def.width * (0.94 + rng.next() * 0.28) * (1 + easing * 0.4);
     let nx = Math.sin(tilt);
     let ny = -Math.cos(tilt);

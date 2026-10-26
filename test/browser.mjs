@@ -442,9 +442,14 @@ check('view setting switches camera zoom and persists', () => {
   tick(1);
   const zoomNormal = window.JTTS.game.camera.zoom;
   if (!(zoomUltra < zoomNormal)) throw new Error(`ultra zoom ${zoomUltra} is not smaller than normal ${zoomNormal}`);
+  click(seg.querySelector('[data-v="hyper"]'));
+  tick(1);
+  if (window.JTTS.save.data.settings.view !== 'hyper') throw new Error('hyper option not selectable');
+  const zoomHyper = window.JTTS.game.camera.zoom;
+  if (!(zoomHyper < zoomUltra)) throw new Error('0.25x did not zoom further than 0.5x');
   click(seg.querySelector('[data-v="ultra"]'));
   tick(1);
-  return `ultra ${zoomUltra.toFixed(2)}× vs normal ${zoomNormal.toFixed(2)}×`;
+  return `hyper ${zoomHyper.toFixed(2)}× / ultra ${zoomUltra.toFixed(2)}× / normal ${zoomNormal.toFixed(2)}×`;
 });
 
 check('the menu track (EDM) is scheduled once audio unlocks', () => {

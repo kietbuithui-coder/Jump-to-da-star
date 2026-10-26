@@ -55,14 +55,33 @@ export function padContact(p, x0, y0, radius, pads) {
     const cos = Math.cos(pad.angle || 0);
     const sin = Math.sin(pad.angle || 0);
     const along = (p.x - pad.x) * cos + (p.y - pad.y) * sin;
-    const halfW = pad.w / 2 + radius * 0.3;
-    if (Math.abs(along) > halfW) continue;
-    const catchDepth = pad.catch ?? 0;
-    const surface = radius + 4;
-    if (dNow > surface + catchDepth) continue;
+    const mushroom = pad.id === 'mushroom';
+    // The mushroom cap is drawn ~32 px above pad.y. Require an actual swept
+    // crossing of that visible top, not the support pad's 170px magnet zone.
+    // Test the X position AT IMPACT, not at the end of a fast physics step.
+    const surface = radius + (mushroom ? 32 : 4);
+    if (mushroom) {
+      // Swept circle against the visible cap. Reject the old invisible
+      // 170 px catch field, but retain genuine side and fast-frame contacts.
+      const bottom = -radius - 8;
+      if (dNow > surface || dPrev < bottom) continue;
+      const span = dPrev - dNow;
+      const first = Math.max(0, Math.min(1, (dPrev - surface) / span));
+      const last = Math.max(0, Math.min(1, (dPrev - bottom) / span));
+      const previousAlong = (x0 - pad.x) * cos + (y0 - pad.y) * sin;
+      const stepAlong = along - previousAlong;
+      const nearestT = Math.max(first, Math.min(last, stepAlong ? -previousAlong / stepAlong : first));
+      const closestAlong = previousAlong + stepAlong * nearestT;
+      if (Math.abs(closestAlong) > (pad.w ?? 250) / 2 + radius * 1.1) continue;
+    } else {
+      const halfW = pad.w / 2 + radius * 0.3;
+      if (Math.abs(along) > halfW) continue;
+      const catchDepth = pad.catch ?? 0;
+      if (dNow > surface + catchDepth) continue;
+    }
     const depth = Math.max(0, surface - dNow);
     if (!best || depth < best.depth) {
-      best = { pad, nx, ny, depth, along };
+      best = { pad, nx, ny, depth, along, surface };
     }
   }
   return best;

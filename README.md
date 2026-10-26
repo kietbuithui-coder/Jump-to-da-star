@@ -172,12 +172,20 @@ Environment: **Node v22.22.3**, Linux container, **no GPU, no browser window, no
 The renderer was exercised through `@napi-rs/canvas` (a CPU Canvas2D implementation) and the UI
 through **jsdom** with a stubbed 2D context and stubbed `AudioContext`.
 
+The two test suites need optional dev-only packages (`@napi-rs/canvas` for a real Canvas2D, `jsdom`
+for the DOM). Neither ships with the game — without them the rendering checks fail loudly and the
+browser-path suite skips:
+
 ```bash
-node test/run.mjs        # 55/55 passed
-node test/browser.mjs    # 15/15 passed
+npm i --no-save @napi-rs/canvas jsdom   # only if you want to run the tests
 ```
 
-### `test/run.mjs` — 55 checks, 55 passing
+```bash
+node test/run.mjs        # 64/64 passed
+node test/browser.mjs    # 18/18 passed
+```
+
+### `test/run.mjs` — 64 checks, 64 passing
 
 | Group | What is actually asserted |
 | --- | --- |
@@ -207,12 +215,13 @@ node test/browser.mjs    # 15/15 passed
 * A pilot who presses *nothing at all* now dies in the first kilometre — by design, since the nets
   are gone. Falling is a mistake, not a rescue.
 
-### `test/browser.mjs` — 15 checks, 15 passing
+### `test/browser.mjs` — 18 checks, 18 passing
 
 Loads the real `index.html` in jsdom, boots the real `src/main.js`, and drives the real UI:
 menu → characters → upgrades → records → settings → menu routing; character cards (locked pilots
 refused, paid unlocks work, reselect works); upgrade lab (cannot buy without coins, purchase
-deducts and persists); settings sliders persist; PLAY starts a run and the launch fires; 20 s of
+deducts and persists); settings sliders persist; the VIEW control switches camera zoom (and persists); the menu fullscreen
+button is wired; the EDM sequencer schedules notes once audio unlocks; PLAY starts a run and the launch fires; 20 s of
 flight stays finite and scores; right-click fires the skill and releases cleanly; `Esc` pauses and resumes with the simulation frozen; death writes
 coins, records, history and the save, and shows the game-over screen; a fresh `SaveStore` reloads
 that save intact; quality switching re-renders; no uncaught errors.

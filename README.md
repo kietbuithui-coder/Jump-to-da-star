@@ -22,6 +22,18 @@ In-game: press **`F`** or tap the **⛶** button — there is also a **⛶ FULLS
 On phones it also requests a landscape lock. The HUD reserves that button column, so the coin pill
 and boost stars never draw underneath it.
 
+**Open it in its own tab.** Inside an embed preview the game lives in an iframe, where the
+Fullscreen API is refused. The **↗ NEW TAB** button in the menu opens `?standalone=1` in a fresh
+browser tab; the game also drops a plain **open in new tab** link under the menu for a few seconds,
+so a popup blocker can never leave you stuck. In standalone mode it asks for fullscreen and a
+landscape lock on the first tap — inside a normal page those requests are skipped, so nothing
+throws.
+
+**Tiếng Việt / English.** The whole game is bilingual and starts in **Vietnamese**. Switch at any
+time with the **VI / EN** chip in the menu header or SETTINGS → LANGUAGE. The choice is saved and
+covers menus, buttons, the in-canvas HUD, tutorial hints, item names, pilot skills, upgrade cards,
+region names, combo tiers and the result screen. The title art stays "JUMP TO THE STAR" in both.
+
 **See further:** the camera has three view distances — Normal (1×), Wide (0.72×) and **Ultra (0.5×)**.
 Ultra shows ~2 960 world-px across a 1600px screen (about two hops ahead). Cycle live with **`Z`** or
 pick one in SETTINGS → VIEW (default: Wide).
@@ -42,6 +54,8 @@ browser window by me** — open it and tell me what breaks.
 | Pause | `Esc` / `P` | ⏸ button | — |
 | Mute | `M` | — | — |
 | Fullscreen | `F` or ⛶ button (also in the menu) | ⛶ button | ⛶ button |
+| Own tab / standalone | ↗ NEW TAB in the menu (opens `?standalone=1`) | ↗ button | ↗ button |
+| Language | VI / EN chip in the menu, or SETTINGS → LANGUAGE | same | same |
 | View distance | `Z` cycles Normal → Wide → Ultra 0.5× | SETTINGS → VIEW | SETTINGS → VIEW |
 
 Input is buffered for 140 ms, so a press slightly before the boost lockout ends still fires.
@@ -104,8 +118,10 @@ only outside the safe corridor.
 | 5 000–15 000 m | Illegal Science Zone | 0.58 |
 | 15 000 m + | The Star Frontier | 0.50 |
 
-Density also falls off with distance: **≈ 0.032 items/m** in the first 500 m vs **≈ 0.026 items/m**
-past 10 km (measured). The map is generated in chunks, streamed ahead of the camera and recycled
+Density also falls off with distance: measured as **0.0375 / 0.0263 / 0.0190 / 0.0099 items/m** in
+the 300–1 500 m, 1 500–4 000 m, 4 000–9 000 m and 9 000–20 000 m bands. The late bands thin out on
+purpose (cluster chance, cluster size and mid-pad chance all shrink with distance) so the endgame
+stays readable instead of becoming a loot carpet. The map is generated in chunks, streamed ahead of the camera and recycled
 behind it (measured steady state: **45–112 live entities, 5 resident chunks** over 40 km).
 
 **A missed hop is a real death.** There are no safety nets (they were removed on request — they felt
@@ -114,9 +130,14 @@ the previous pad's real bounce arc, with the same maths the player uses, so a re
 exists. The reference pilot proves it: **25/25 routes to 10 km** and a deeper sweep of **50/50 routes
 to 20 km** using only steering + three boosts (no skills, no upgrades).
 
-**The sky is open.** The corridor breathes ±1 000 px, and roughly 40 % of hops carry a **sky shelf**:
-premium loot (boost star, super energy, magnet, coffee, balloon, chute) parked 620–1 100 px above the
-route, past the reach of any normal bounce. Every shelf ships with a thermal column (or a near-vertical
+**The opening is forgiving.** For the first 700 m the generator shortens hops (down to ×0.78), widens
+landing pads (up to ×1.4), drops the tilt chance to zero and caps drops at ×0.65, then ramps to the
+normal rules. Past 3 km a `late` factor starts thinning the loot. A hard cap (3 100 px) means no hop
+is ever longer than the engine's proven ceiling.
+
+**The sky is open.** The corridor breathes ±1 000 px, and **62 %** of hops carry a **sky shelf**:
+premium loot (boost star, super energy, magnet, coffee, balloon, chute) parked 620–1 400 px above the
+route, past the reach of any normal bounce (114 shelves measured over 20 km). Every shelf ships with a thermal column (or a near-vertical
 jet gate) that can actually lift you there — the test checks the climb against the lift, not "looks fine".
 
 ---
@@ -140,13 +161,15 @@ jet gate) that can actually lift you there — the test checks the climb against
 index.html                  app shell + all screens (menu/characters/upgrades/records/settings/pause/gameover)
 styles/main.css             UI skin, responsive + touch layout
 src/config/config.js        EVERY tuning number lives here (physics, economy, regions, quality)
-src/core/                   mathx (RNG, clamp, damp), loop (fixed 1/120 step), input (keyboard+touch+buffer)
+src/core/                   mathx (RNG, clamp, damp), loop (fixed 1/120 step), input (keyboard+touch+buffer),
+                            i18n (EN/VI dictionary, t/pick/regionLabel/applyI18n, saved language)
 src/game/                   save, characters, upgrades, physics, flight, bounce, items, world,
                             camera, particles, score, audio, game (state machine + rules)
 src/art/                    art primitives, 5 character rigs, item art, world scenery, HUD, scene renderer
 src/main.js                 boot, screen router, menus, upgrade lab, records, settings, loop wiring
-test/run.mjs                55 engine/gameplay checks (headless, real modules)
-test/browser.mjs            14 DOM/boot/UI checks (jsdom + stubbed canvas)
+test/run.mjs                75 engine/gameplay/i18n/voice checks (headless, real modules)
+test/browser.mjs            24 DOM/boot/UI checks (jsdom + stubbed canvas)
+test/sweep.mjs              deep fairness sweep: 50 seeded routes to 20 km
 test/autopilot.mjs          reference pilot used to prove generated maps are flyable
 test/play.mjs               headless run harness, can dump gameplay frames
 tools/serve.mjs             dependency-free static server
@@ -181,11 +204,12 @@ npm i --no-save @napi-rs/canvas jsdom   # only if you want to run the tests
 ```
 
 ```bash
-node test/run.mjs        # 64/64 passed
-node test/browser.mjs    # 18/18 passed
+node test/run.mjs        # 75/75 passed
+node test/browser.mjs    # 24/24 passed
+node test/sweep.mjs 20   # 50/50 routes to 20 km
 ```
 
-### `test/run.mjs` — 64 checks, 64 passing
+### `test/run.mjs` — 75 checks, 75 passing
 
 | Group | What is actually asserted |
 | --- | --- |
@@ -202,7 +226,9 @@ node test/browser.mjs    # 18/18 passed
 | run lifecycle (4) | floor death builds a summary and pays coins; restart clears every per-run field; pause freezes and resumes; the launch charge window produces a perfect launch (measured: 53 % charge → vy −1699) |
 | engine (2) | 20 fps and 120 fps frame budgets produce the **same** simulation (x 4985.8 vs 4985.8); a stalled frame cannot spin the accumulator |
 | rendering (4) | all five regions render with a **balanced** save/restore stack (this caught two real leaks); launch/fly/dead all render; 640×360 and 2560×1440 render; average frame cost |
-| audio (2) | the engine is a safe no-op before user interaction; every SFX name used in code exists in the synth (27 names → 29 voices) |
+| audio (2) | the engine is a safe no-op before user interaction; every SFX name used in code exists in the synth (29 names → 45 voices) |
+| voices (4) | "ey"/"ooh" are layered formant voices (≥3 voices × 3 band-pass formants + a breath layer + vibrato), not beeps; the crowd scales and caps at 4 voices; a broken WebAudio graph cannot throw into the game loop; a perfect launch really fires the "ey" cheer and a tier-3 combo really fires the "ooh" crowd |
+| i18n (7) | 149 EN/VI pairs with no missing side; 82 markup `data-i18n` keys all resolve; switching language changes what the player reads (CHƠI/PLAY, LÒ XO SINH HỌC/BIO SPRING); all 5 pilots, 20 items and 8 upgrades carry Vietnamese text; EN and VI use identical `{placeholders}`; region names and combo tiers are localised; the save remembers the language and repairs garbage back to `vi` |
 | performance (1) | simulation + streaming costs **0.86 ms of CPU per wall-clock second** (7 µs/step) |
 | wiring (7) | every DOM id the code looks up exists; every `data-action` is handled; every relative import resolves (57); game logic never touches `document`/`localStorage`; tuning constants all live in config; no emoji/placeholder art |
 
@@ -215,16 +241,30 @@ node test/browser.mjs    # 18/18 passed
 * A pilot who presses *nothing at all* now dies in the first kilometre — by design, since the nets
   are gone. Falling is a mistake, not a rescue.
 
-### `test/browser.mjs` — 18 checks, 18 passing
+### `test/browser.mjs` — 24 checks, 24 passing
 
 Loads the real `index.html` in jsdom, boots the real `src/main.js`, and drives the real UI:
 menu → characters → upgrades → records → settings → menu routing; character cards (locked pilots
 refused, paid unlocks work, reselect works); upgrade lab (cannot buy without coins, purchase
-deducts and persists); settings sliders persist; the VIEW control switches camera zoom (and persists); the menu fullscreen
-button is wired; the EDM sequencer schedules notes once audio unlocks; PLAY starts a run and the launch fires; 20 s of
-flight stays finite and scores; right-click fires the skill and releases cleanly; `Esc` pauses and resumes with the simulation frozen; death writes
-coins, records, history and the save, and shows the game-over screen; a fresh `SaveStore` reloads
-that save intact; quality switching re-renders; no uncaught errors.
+deducts and persists); settings sliders persist; the VIEW control switches camera zoom (and
+persists); the menu fullscreen button is wired; the EDM sequencer schedules notes once audio
+unlocks; **language switching** (VI ⇄ EN flips the PLAY button and persists to the save);
+**NEW TAB** renders a real `?standalone=1` link with `target=_blank` (and the standalone gate stays
+hidden in a normal visit); **RESTART refills the launch charge bar** (the regression from this
+batch: after a restart the meter charged to 67 % and launched); PLAY starts a run and the launch
+fires; 20 s of flight stays finite and scores (a death caused by *no input at all* is retried, so
+the check never depends on luck); **the live HUD is drawn in Vietnamese and then in English** —
+`NĂNG LƯỢNG` / `ENERGY` are captured from real `fillText` calls, with no `{n}`/`undefined` ever
+painted; right-click fires the skill and releases cleanly; `Esc` pauses and resumes with the
+simulation frozen; death writes coins, records, history and the save, and shows the game-over
+screen; a fresh `SaveStore` reloads that save intact; quality switching re-renders; no uncaught
+errors. The pause **journey map** is checked for Vietnamese region names (`PHÒNG PHÓNG SHAPI`,
+`Đang bay`) as well.
+
+I also eyeballed a software-rendered Vietnamese frame (`node test/play.mjs`, PNG dumped locally):
+`ĐIỂM 2,114`, `NĂNG LƯỢNG`, `KỸ NĂNG` and the minimap label `ĐỒNG NÂY` all draw with correct
+diacritics and stay inside their boxes. DOM panels (menu/characters/settings) were **not**
+screenshotted — no browser — so Vietnamese line lengths there are reasoned about, not seen.
 
 ### Rendering numbers (CPU canvas, no GPU)
 
@@ -240,7 +280,12 @@ in a browser.
   pixel ratio, pointer events and WebAudio graph behaviour in a live browser are unverified.
 * **A physical Android device.** The touch layout, `--touch-scale`, coarse-pointer detection and
   the 45 fps auto-degrade are implemented and unit-checked, not field-tested.
-* **Audio by ear.** The synth is written and its voice table is verified; no human has heard it.
+* **Audio by ear.** The synth is written and its voice table is verified — including the new
+  crowd/formant voices — but no human has heard them.
+* **Vietnamese typography in a real browser.** The canvas frames were checked with a real CPU
+  Canvas2D and Vietnamese glyph coverage; the HTML panels were checked only through jsdom text
+  assertions, not visually. Some in-world signage (`CAUTION`, `LAUNCH ZONE`, the logo) is painted
+  art and stays English on purpose.
 * **Long real-time play sessions** (30 min+, memory growth in a browser tab).
 * **Frame pacing under thermal load** on low-end phones.
 

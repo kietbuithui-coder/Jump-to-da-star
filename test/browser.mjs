@@ -31,6 +31,8 @@ const { window } = dom;
 
 /* ------------------------------------------------------------ canvas stub */
 const calls = new Map();
+const drawnText = [];
+const VI_CHARS = /[ăâđêôơưĂÂĐÊÔƠƯàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/;
 function makeCtx(canvas) {
   const target = {
     canvas,
@@ -73,8 +75,12 @@ function makeCtx(canvas) {
     rotate() {},
     scale() {},
     transform() {},
-    fillText() {},
-    strokeText() {},
+    fillText(text) {
+      drawnText.push(String(text));
+    },
+    strokeText(text) {
+      drawnText.push(String(text));
+    },
     fillRect() {},
     strokeRect() {},
     clearRect() {},
@@ -166,10 +172,18 @@ class FakeAudioContext {
   createOscillator() {
     oscCount++;
     if (window.__audio) window.__audio.osc = oscCount;
+    const param = (v) => ({
+      value: v,
+      setValueAtTime() {},
+      linearRampToValueAtTime() {},
+      exponentialRampToValueAtTime() {},
+      setTargetAtTime() {},
+      cancelScheduledValues() {},
+    });
     return {
       type: 'sine',
-      frequency: { value: 440, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} },
-      detune: { value: 0, setValueAtTime() {} },
+      frequency: param(440),
+      detune: param(0),
       connect() {},
       start() {},
       stop() {},
@@ -185,7 +199,15 @@ class FakeAudioContext {
     return { buffer: null, playbackRate: { value: 1, setValueAtTime() {} }, connect() {}, start() {}, stop() {}, onended: null };
   }
   createBiquadFilter() {
-    return { type: 'lowpass', frequency: { value: 400, setValueAtTime() {}, exponentialRampToValueAtTime() {} }, Q: { value: 1 }, connect() {}, disconnect() {} };
+    const param = (v) => ({
+      value: v,
+      setValueAtTime() {},
+      linearRampToValueAtTime() {},
+      exponentialRampToValueAtTime() {},
+      setTargetAtTime() {},
+      cancelScheduledValues() {},
+    });
+    return { type: 'lowpass', frequency: param(400), Q: param(1), gain: param(1), connect() {}, disconnect() {} };
   }
   createDynamicsCompressor() {
     return { threshold: { value: 0, setValueAtTime() {} }, knee: { value: 0 }, ratio: { value: 1 }, attack: { value: 0 }, release: { value: 0 }, connect() {} };
@@ -269,6 +291,31 @@ const click = (el) => {
   el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 };
 const key = (code, type = 'keydown') => window.dispatchEvent(new window.KeyboardEvent(type, { code, key: code, bubbles: true }));
+
+/** Guarantee a live, flying run: retries after a death and re-launches. */
+function ensureFlying() {
+  const g = window.JTTS.game;
+  if (g.state === 'fly') return g;
+  if (g.state === 'launch') {
+    key('Space');
+    tick(30);
+    key('Space', 'keyup');
+    tick(4);
+    if (g.state !== 'fly') throw new Error(`could not launch (${g.state})`);
+    return g;
+  }
+  const retry = $('#screen-gameover .btn--primary[data-action="retry"]') || $('#screen-gameover [data-action="retry"]');
+  if (retry && $('#screen-gameover').classList.contains('is-active')) click(retry);
+  else click($('[data-action="play"]'));
+  tick(2);
+  if (g.state !== 'launch') throw new Error(`retry did not restart a run (${g.state})`);
+  key('Space');
+  tick(30);
+  key('Space', 'keyup');
+  tick(4);
+  if (g.state !== 'fly') throw new Error(`re-launch failed (${g.state})`);
+  return g;
+}
 
 let bootError = null;
 try {
@@ -372,7 +419,8 @@ check('upgrade lab refuses purchases you cannot afford and accepts ones you can'
 check('the menu has a fullscreen button and it does not throw', () => {
   const btn = $('[data-action="fullscreen"]');
   if (!btn) throw new Error('no fullscreen button in the menu');
-  if (!btn.textContent.toLowerCase().includes('fullscreen')) throw new Error('button is unlabelled');
+  if (!btn.textContent.includes('⛶')) throw new Error('button is unlabelled');
+  if (!$('#fsBtn')) throw new Error('the in-game fullscreen FAB is missing');
   click(btn);
   tick(1);
   return 'menu fullscreen button wired';
@@ -408,6 +456,72 @@ check('the menu track (EDM) is scheduled once audio unlocks', () => {
   return `${after - before} notes scheduled by the music engine`;
 });
 
+check('language switch (VI ⇄ EN) translates the UI and persists', () => {
+  const playBtn = $('[data-action="play"] span');
+  const before = playBtn.textContent;
+  const langBtn = $('#menuLang');
+  if (!langBtn) throw new Error('no language chip in the menu');
+  // force VI first
+  while (window.JTTS.save.data.settings.lang !== 'vi') click(langBtn);
+  tick(1);
+  if (playBtn.textContent !== 'CHƠI') throw new Error(`VI play label was "${playBtn.textContent}"`);
+  click(langBtn);
+  tick(1);
+  if (window.JTTS.save.data.settings.lang !== 'en') throw new Error('language did not switch to EN');
+  if (playBtn.textContent !== 'PLAY') throw new Error(`EN play label was "${playBtn.textContent}"`);
+  const stored = JSON.parse(window.localStorage.getItem('jtts.save.v2'));
+  if (stored.settings.lang !== 'en') throw new Error('language not persisted in the save');
+  click(langBtn);
+  tick(1);
+  return `"${before}" → VI "CHƠI" → EN "PLAY" → VI`;
+});
+
+check('NEW TAB button opens a standalone link (and shows a manual fallback)', () => {
+  click($('[data-action="newtab"]'));
+  tick(1);
+  const hint = $('#newTabHint');
+  if (!hint) throw new Error('no fallback hint rendered');
+  const link = hint.querySelector('a');
+  if (!link) throw new Error('fallback hint has no link');
+  if (!link.href.includes('standalone=1')) throw new Error(`link is ${link.href}`);
+  if (link.target !== '_blank') throw new Error('link does not open a new tab');
+  hint.remove();
+  return `${new URL(link.href).pathname}?standalone=1`;
+});
+
+check('the standalone gate stays hidden in a normal visit', () => {
+  const gate = $('#standaloneGate');
+  if (!gate) throw new Error('gate markup missing');
+  if (!gate.hidden) throw new Error('gate is blocking the menu without ?standalone=1');
+  return 'hidden unless ?standalone=1';
+});
+
+check('RESTART refills the launch bar (regression: charge was dead after restart)', () => {
+  const g = window.JTTS.game;
+  // start a fresh run, launch, then restart from the pause menu
+  if (window.JTTS.screen === 'gameover') click($('#screen-gameover [data-action="retry"]'));
+  else click($('[data-action="play"]'));
+  tick(1);
+  key('Space');
+  tick(20);
+  key('Space', 'keyup');
+  tick(6);
+  key('Escape');
+  tick(2);
+  click($('[data-action="restart"]'));
+  tick(2);
+  if (g.state !== 'launch') throw new Error(`state after restart: ${g.state}`);
+  if (g.launchPower !== 0) throw new Error(`charge carried over (${g.launchPower})`);
+  key('Space');
+  tick(30);
+  const charged = g.launchPower;
+  key('Space', 'keyup');
+  tick(2);
+  if (!(charged > 0.2)) throw new Error(`charge bar did not move after restart (${charged})`);
+  if (g.state !== 'fly') throw new Error(`release did not launch (${g.state})`);
+  return `charge rebuilt to ${(charged * 100).toFixed(0)}% and launched`;
+});
+
 check('settings sliders persist to storage', () => {
   window.JTTS.showScreen('settings');
   tick(1);
@@ -438,16 +552,57 @@ check('PLAY starts a run and the HUD comes alive', () => {
 });
 
 check('flying for 20 s keeps the simulation stable and the score moving', () => {
-  const g = window.JTTS.game;
-  const x0 = g.player.x;
-  for (let s = 0; s < 20; s++) tick(60);
-  if (!Number.isFinite(g.player.x) || !Number.isFinite(g.player.y)) throw new Error('NaN in player state');
-  if (g.score.metres < 50) throw new Error(`only ${g.score.metres.toFixed(0)} m after 20 s`);
-  return `${Math.round(g.score.metres)} m, state ${g.state}, ${g.particles.count} particles`;
+  let g = ensureFlying();
+  let best = 0;
+  let deaths = 0;
+  // no steering at all: some runs genuinely die (that is the game), so a death
+  // is retried and the stability check continues on a fresh run.
+  for (let s = 0; s < 20; s++) {
+    tick(60);
+    if (!Number.isFinite(g.player.x) || !Number.isFinite(g.player.y)) throw new Error('NaN in player state');
+    best = Math.max(best, g.score.metres);
+    if (g.state === 'dead' || g.state === 'gameover' || window.JTTS.screen === 'gameover') {
+      deaths++;
+      tick(30); // let the result screen settle
+      g = ensureFlying();
+    }
+  }
+  g = ensureFlying();
+  if (best < 50) throw new Error(`only ${best.toFixed(0)} m in 20 s`);
+  return `${Math.round(best)} m best of ${deaths + 1} run(s), ${deaths} death(s) with no input, state ${g.state}`;
+});
+
+await checkAsync('the running HUD is drawn in Vietnamese, then in English', async () => {
+  const { setLang } = await import('../src/core/i18n.js');
+  const g = ensureFlying();
+  const hudText = () => {
+    tick(3);
+    const seen = drawnText.filter((t) => t && t.trim());
+    drawnText.length = 0;
+    return seen;
+  };
+  setLang('vi');
+  const vi = hudText();
+  if (!vi.length) throw new Error('nothing was drawn onto the HUD canvas');
+  if (!vi.some((t) => t.includes('NĂNG LƯỢNG'))) throw new Error('VI energy label missing from the HUD');
+  if (!vi.some((t) => VI_CHARS.test(t))) throw new Error('no Vietnamese diacritics on the canvas at all');
+
+  setLang('en');
+  const en = hudText();
+  if (!en.some((t) => t.includes('ENERGY'))) throw new Error('EN energy label missing from the HUD');
+  if (en.some((t) => t.includes('NĂNG LƯỢNG'))) throw new Error('VI label survived the switch to EN');
+
+  // never paint a broken translation on screen
+  const broken = [...vi, ...en].filter((t) => /\{n\}|undefined|\[object /.test(t));
+  if (broken.length) throw new Error(`broken label painted: ${broken.slice(0, 3).join(' | ')}`);
+
+  setLang('vi');
+  const metres = Math.round(g.score.metres);
+  return `VI + EN HUD both rendered at ${metres} m (${vi.length}/${en.length} strings per frame)`;
 });
 
 check('right mouse button fires the character skill', () => {
-  const g = window.JTTS.game;
+  const g = ensureFlying();
   g.player.energy = g.player.energyMax;
   g.player.skillCooldown = 0;
   const before = g.player.energy;
@@ -463,7 +618,7 @@ check('right mouse button fires the character skill', () => {
 });
 
 check('escape pauses, escape resumes', () => {
-  const g = window.JTTS.game;
+  const g = ensureFlying();
   key('Escape');
   tick(2);
   if (g.state !== 'paused') throw new Error(`state ${g.state}`);
@@ -477,19 +632,37 @@ check('escape pauses, escape resumes', () => {
   return 'pause/resume via keyboard';
 });
 
+check('the pause journey map shows Vietnamese region names', () => {
+  ensureFlying();
+  key('Escape');
+  tick(2);
+  const langBefore = window.JTTS.save.data.settings.lang;
+  click($('[data-action="map"]'));
+  tick(1);
+  const panel = $('#pauseMap');
+  if (!panel.classList.contains('is-open')) throw new Error('map panel did not open');
+  const text = panel.textContent;
+  if (langBefore === 'vi') {
+    if (!text.includes('PHÒNG PHÓNG SHAPI')) throw new Error(`VI region names missing: ${text.slice(0, 80)}`);
+    if (!text.includes('Đang bay')) throw new Error('VI "current flight" label missing');
+  } else if (!text.includes("SHAPI'S LAUNCH LAB")) throw new Error(`EN region names missing: ${text.slice(0, 80)}`);
+  click($('[data-action="map"]'));
+  tick(1);
+  key('Escape');
+  tick(2);
+  return `${langBefore.toUpperCase()} map: ${panel.querySelectorAll('.map-region').length} regions, ${text.length} chars`;
+});
+
 check('game over saves coins, records and a recent run', () => {
-  const g = window.JTTS.game;
+  const g = ensureFlying();
   const coinsBefore = window.JTTS.save.data.coins;
   const runsBefore = window.JTTS.save.data.totalRuns;
-  // find a stretch with no rescue net above it, so this is a genuine fall
-  let spot = g.player.x;
-  for (let x = g.player.x + 600; x < g.player.x + 40000; x += 120) {
-    if (!g.world.padsNear(x).length) {
-      spot = x;
-      break;
-    }
-  }
-  g.player.x = spot;
+  // deterministic death: temporarily remove every pad so the fall is real
+  const originalPadsNear = g.world.padsNear.bind(g.world);
+  const originalZonesNear = g.world.zonesNear.bind(g.world);
+  g.world.padsNear = () => [];
+  g.world.zonesNear = () => [];
+  const spot = g.player.x;
   g.player.vx = 0;
   g.player.rideUfo = null;
   const floorY = g.world.floorAt(spot);
@@ -501,6 +674,8 @@ check('game over saves coins, records and a recent run', () => {
     trace.push(`${g.state}@${Math.round(g.player.y - floorY)}`);
     if (g.state === 'dead') break;
   }
+  g.world.padsNear = originalPadsNear;
+  g.world.zonesNear = originalZonesNear;
   if (g.state !== 'dead') throw new Error(`state ${g.state}; ${trace.join(' ')}`);
   tick(60);
   tick(120);

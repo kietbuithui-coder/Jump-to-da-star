@@ -87,9 +87,9 @@ export const WORLD = {
   waveAmp: 640, // primary vertical wave (how high and low the route breathes)
   waveAmp2: 240,
   dropMax: 520, // biggest vertical step between two pads
-  skyChance: 0.4, // chance a hop carries a high-altitude reward shelf
+  skyChance: 0.62, // chance a hop carries a high-altitude reward shelf
   skyMin: 620, // px above the pad line (needs a thermal / boost chain)
-  skyMax: 1100,
+  skyMax: 1400,
 };
 
 export const CAMERA = {

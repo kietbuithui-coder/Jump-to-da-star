@@ -6,6 +6,7 @@
 
 export const ITEM_DEFS = {
   orb: {
+    vi: { name: 'ORB NĂNG LƯỢNG', desc: '+10 năng lượng' },
     id: 'orb',
     name: 'ENERGY ORB',
     kind: 'pickup',
@@ -20,6 +21,7 @@ export const ITEM_DEFS = {
     sound: 'pop',
   },
   super: {
+    vi: { name: 'SIÊU NĂNG LƯỢNG', desc: '+30 năng lượng' },
     id: 'super',
     name: 'SUPER ENERGY',
     kind: 'pickup',
@@ -34,6 +36,7 @@ export const ITEM_DEFS = {
     sound: 'ding',
   },
   comboOrb: {
+    vi: { name: 'NĂNG LƯỢNG CHUỖI', desc: 'Nối chuỗi combo' },
     id: 'comboOrb',
     name: 'COMBO ENERGY',
     kind: 'pickup',
@@ -49,6 +52,7 @@ export const ITEM_DEFS = {
     sound: 'pop',
   },
   boostStar: {
+    vi: { name: 'SAO BOOST', desc: '+1 boost' },
     id: 'boostStar',
     name: 'BOOST STAR',
     kind: 'pickup',
@@ -63,6 +67,7 @@ export const ITEM_DEFS = {
     sound: 'star',
   },
   coin: {
+    vi: { name: 'SAO COIN', desc: 'Tiền Sao Coin' },
     id: 'coin',
     name: 'STAR COIN',
     kind: 'pickup',
@@ -77,6 +82,7 @@ export const ITEM_DEFS = {
     sound: 'coin',
   },
   battery: {
+    vi: { name: 'PIN NĂNG LƯỢNG', desc: '+22 năng lượng' },
     id: 'battery',
     name: 'POWER CELL',
     kind: 'pickup',
@@ -91,6 +97,7 @@ export const ITEM_DEFS = {
     sound: 'zap',
   },
   rocket: {
+    vi: { name: 'TÊN LỬA NHỎ', desc: 'Đẩy mạnh về phía trước' },
     id: 'rocket',
     name: 'MINI ROCKET',
     kind: 'booster',
@@ -106,6 +113,7 @@ export const ITEM_DEFS = {
     sound: 'rocket',
   },
   bomb: {
+    vi: { name: 'BOM ĐẨY', desc: 'Nổ đẩy bạn đi' },
     id: 'bomb',
     name: 'PUSH BOMB',
     kind: 'booster',
@@ -121,6 +129,7 @@ export const ITEM_DEFS = {
     sound: 'boom',
   },
   balloon: {
+    vi: { name: 'BÓNG CƯỜI', desc: 'Trọng lực thấp 3,4 giây' },
     id: 'balloon',
     name: 'GIGGLE BALLOON',
     kind: 'buff',
@@ -136,6 +145,7 @@ export const ITEM_DEFS = {
     sound: 'bloop',
   },
   coffee: {
+    vi: { name: 'CÀ PHÊ LƯỢNG TỬ', desc: '+45% sức boost' },
     id: 'coffee',
     name: 'QUANTUM COFFEE',
     kind: 'buff',
@@ -151,6 +161,7 @@ export const ITEM_DEFS = {
     sound: 'slurp',
   },
   magnet: {
+    vi: { name: 'NAM CHÂM NGƯỢC', desc: 'Hút loot trong 4,5 giây' },
     id: 'magnet',
     name: 'REVERSE MAGNET',
     kind: 'buff',
@@ -166,6 +177,7 @@ export const ITEM_DEFS = {
     sound: 'zap',
   },
   parachute: {
+    vi: { name: 'DÙ QUẦN LÓT', desc: 'Rơi chậm 3,6 giây' },
     id: 'parachute',
     name: 'UNDERPANTS CHUTE',
     kind: 'buff',
@@ -181,6 +193,7 @@ export const ITEM_DEFS = {
     sound: 'flutter',
   },
   spring: {
+    vi: { name: 'LÒ XO ĐIÊN', desc: 'Nảy theo pháp tuyến mặt pad' },
     id: 'spring',
     name: 'CRAZY SPRING',
     kind: 'pad',
@@ -198,6 +211,7 @@ export const ITEM_DEFS = {
     sound: 'twang',
   },
   mushroom: {
+    vi: { name: 'NẤM NẢY', desc: 'Nảy theo góc chạm' },
     id: 'mushroom',
     name: 'BOUNCE MUSHROOM',
     kind: 'pad',
@@ -215,6 +229,7 @@ export const ITEM_DEFS = {
     sound: 'boing',
   },
   ice: {
+    vi: { name: 'BĂNG TRƠN', desc: 'Lệch hướng và trượt đi' },
     id: 'ice',
     name: 'SLIPPERY ICE',
     kind: 'pad',
@@ -231,6 +246,7 @@ export const ITEM_DEFS = {
     sound: 'slide',
   },
   jetGate: {
+    vi: { name: 'CỔNG PHẢN LỰC', desc: 'Cổng phóng theo góc cố định' },
     id: 'jetGate',
     name: 'JET GATE',
     kind: 'gate',
@@ -246,6 +262,7 @@ export const ITEM_DEFS = {
     sound: 'rocket',
   },
   ufo: {
+    vi: { name: 'UFO LỖI', desc: 'Chở bạn một đoạn rồi ném đi' },
     id: 'ufo',
     name: 'GLITCH UFO',
     kind: 'ride',
@@ -262,6 +279,7 @@ export const ITEM_DEFS = {
     sound: 'glitch',
   },
   hotair: {
+    vi: { name: 'CỘT KHÍ NÓNG', desc: 'Nâng bạn khi ở trong cột' },
     id: 'hotair',
     name: 'HOT AIR JET',
     kind: 'zone',
@@ -278,6 +296,7 @@ export const ITEM_DEFS = {
     sound: 'wind',
   },
   safetyNet: {
+    vi: { name: 'LƯỚI AN TOÀN SHAPI', desc: 'Lưới cứu hộ' },
     id: 'safetyNet',
     name: 'SHAPI SAFETY NET',
     kind: 'pad',
@@ -292,6 +311,7 @@ export const ITEM_DEFS = {
     sound: 'boing',
   },
   hazard: {
+    vi: { name: 'MÌN GAI', desc: 'Đau lắm.' },
     id: 'hazard',
     name: 'SPIKE MINE',
     kind: 'hazard',

@@ -19,34 +19,36 @@
       <div class="brand">
         <canvas id="logoCanvas" width="720" height="420" aria-label="Jump to the Star logo"></canvas>
       </div>
-      <p class="tagline">EXPERIMENT <b>#001</b> · PROF. SHAPI'S LAUNCH LAB</p>
-      <p class="tagline tagline--vi">Thí nghiệm phóng sinh vật ngớ ngẩn xuyên vũ trụ</p>
+      <p class="tagline" data-i18n="menu.tagline"></p>
+      <p class="tagline tagline--vi" data-i18n="menu.tagline2"></p>
       <nav class="menu-buttons">
-        <button class="btn btn--primary" data-action="play"><span>PLAY</span><small>LAUNCH THE EXPERIMENT</small></button>
+        <button class="btn btn--primary" data-action="play"><span data-i18n="menu.play"></span><small data-i18n="menu.play.sub"></small></button>
         <div class="menu-row">
-          <button class="btn" data-action="characters"><span>CHARACTERS</span><small>5 questionable pilots</small></button>
-          <button class="btn" data-action="upgrades"><span>UPGRADES</span><small>spend Star Coins</small></button>
+          <button class="btn" data-action="characters"><span data-i18n="menu.characters"></span><small data-i18n="menu.characters.sub"></small></button>
+          <button class="btn" data-action="upgrades"><span data-i18n="menu.upgrades"></span><small data-i18n="menu.upgrades.sub"></small></button>
         </div>
         <div class="menu-row">
-          <button class="btn" data-action="records"><span>RECORDS</span><small>failed experiments</small></button>
-          <button class="btn" data-action="settings"><span>SETTINGS</span><small>audio · graphics</small></button>
+          <button class="btn" data-action="records"><span data-i18n="menu.records"></span><small data-i18n="menu.records.sub"></small></button>
+          <button class="btn" data-action="settings"><span data-i18n="menu.settings"></span><small data-i18n="menu.settings.sub"></small></button>
         </div>
+        <button class="btn btn--open" data-action="newtab"><span data-i18n="menu.newtab"></span><small data-i18n="menu.newtab.sub"></small></button>
       </nav>
       <div class="menu-footer">
         <div class="chip"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="#ffd93b" stroke="#7a4b0a" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="#a86e0a" stroke-width="2"/></svg><span id="menuCoins">0</span> STAR COINS</div>
         <div class="chip">BEST <b id="menuBest">0 m</b></div>
         <div class="chip chip--pilot" id="menuPilot">PROFESSOR FROG</div>
-        <button class="chip chip--btn" data-action="fullscreen" title="Fullscreen (F)">⛶ FULLSCREEN</button>
+        <button class="chip chip--btn" data-action="fullscreen" data-i18n="menu.fullscreen" data-i18n-title="menu.fullscreen">⛶ FULLSCREEN</button>
+        <button class="chip chip--btn" data-action="lang" id="menuLang">VI / EN</button>
       </div>
     </div>
-    <p class="credits">Procedural art · procedural audio · zero downloads · works offline once loaded</p>
+    <p class="credits" data-i18n="menu.credits"></p>
   </section>
 
   <!-- ============================ CHARACTERS ============================ -->
   <section class="screen" id="screen-characters">
     <header class="screen-head">
-      <h2>CHOOSE YOUR PILOT</h2>
-      <p>Five creatures. Five flight models. Professor Shapi accepts no responsibility.</p>
+      <h2 data-i18n="char.title"></h2>
+      <p data-i18n="char.sub"></p>
       <button class="btn btn--ghost btn--back" data-action="menu">◀ BACK</button>
     </header>
     <div class="char-grid" id="charGrid"></div>
@@ -56,8 +58,8 @@
   <!-- ============================= UPGRADES ============================= -->
   <section class="screen" id="screen-upgrades">
     <header class="screen-head">
-      <h2>THE UPGRADE ROOM</h2>
-      <p>Bolting better science onto your creature. Every part has a limit — Shapi checked.</p>
+      <h2 data-i18n="up.title"></h2>
+      <p data-i18n="up.sub"></p>
       <button class="btn btn--ghost btn--back" data-action="menu">◀ BACK</button>
       <div class="wallet"><span id="upgradeCoins">0</span> <small>STAR COINS</small></div>
     </header>
@@ -75,29 +77,29 @@
   <!-- ============================== RECORDS ============================= -->
   <section class="screen" id="screen-records">
     <header class="screen-head">
-      <h2>RECORDS &amp; FAILED EXPERIMENTS</h2>
-      <p>A tidy archive of every time physics won.</p>
+      <h2 data-i18n="rec.title"></h2>
+      <p data-i18n="rec.sub"></p>
       <button class="btn btn--ghost btn--back" data-action="menu">◀ BACK</button>
     </header>
     <div class="records-grid">
-      <div class="record-card"><span class="record-label">FARTHEST FLIGHT</span><b id="recDistance">0 m</b></div>
-      <div class="record-card"><span class="record-label">HIGHEST SCORE</span><b id="recScore">0</b></div>
-      <div class="record-card"><span class="record-label">BEST COMBO</span><b id="recCombo">0</b></div>
-      <div class="record-card"><span class="record-label">COINS EARNED</span><b id="recCoins">0</b></div>
-      <div class="record-card"><span class="record-label">TOTAL RUNS</span><b id="recRuns">0</b></div>
-      <div class="record-card"><span class="record-label">CHARACTERS UNLOCKED</span><b id="recUnlocked">1 / 5</b></div>
+      <div class="record-card"><span class="record-label" data-i18n="rec.distance"></span><b id="recDistance">0 m</b></div>
+      <div class="record-card"><span class="record-label" data-i18n="rec.score"></span><b id="recScore">0</b></div>
+      <div class="record-card"><span class="record-label" data-i18n="rec.combo"></span><b id="recCombo">0</b></div>
+      <div class="record-card"><span class="record-label" data-i18n="rec.coins"></span><b id="recCoins">0</b></div>
+      <div class="record-card"><span class="record-label" data-i18n="rec.runs"></span><b id="recRuns">0</b></div>
+      <div class="record-card"><span class="record-label" data-i18n="rec.unlocked"></span><b id="recUnlocked">1 / 5</b></div>
     </div>
     <div class="records-lists">
       <div class="panel">
-        <h3>PILOT LOGBOOK</h3>
+        <h3 data-i18n="rec.logbook"></h3>
         <div id="recBestList" class="best-list"></div>
       </div>
       <div class="panel">
-        <h3>RECENT LAUNCHES</h3>
+        <h3 data-i18n="rec.recent"></h3>
         <div id="recHistory" class="history"></div>
       </div>
       <div class="panel">
-        <h3>ACHIEVEMENTS</h3>
+        <h3 data-i18n="rec.achievements"></h3>
         <div id="recAchievements" class="achievements"></div>
       </div>
     </div>
@@ -106,51 +108,57 @@
   <!-- ============================= SETTINGS ============================= -->
   <section class="screen" id="screen-settings">
     <header class="screen-head">
-      <h2>LAB SETTINGS</h2>
-      <p>Calibrate the noise and the pixels.</p>
+      <h2 data-i18n="set.title"></h2>
+      <p data-i18n="set.sub"></p>
       <button class="btn btn--ghost btn--back" data-action="back">◀ BACK</button>
     </header>
     <div class="settings-wrap">
-      <label class="slider-row">MASTER <input type="range" id="setMaster" min="0" max="100" /><output id="outMaster">80%</output></label>
-      <label class="slider-row">MUSIC <input type="range" id="setMusic" min="0" max="100" /><output id="outMusic">55%</output></label>
-      <label class="slider-row">SFX <input type="range" id="setSfx" min="0" max="100" /><output id="outSfx">85%</output></label>
+      <label class="slider-row"><span data-i18n="set.master"></span> <input type="range" id="setMaster" min="0" max="100" /><output id="outMaster">80%</output></label>
+      <label class="slider-row"><span data-i18n="set.music"></span> <input type="range" id="setMusic" min="0" max="100" /><output id="outMusic">55%</output></label>
+      <label class="slider-row"><span data-i18n="set.sfx"></span> <input type="range" id="setSfx" min="0" max="100" /><output id="outSfx">85%</output></label>
       <div class="settings-row">
-        <span>VIEW</span>
+        <span data-i18n="lang.label"></span>
+        <div class="segmented" id="setLang">
+          <button data-l="vi" data-i18n="lang.name"></button><button data-l="en">ENGLISH</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <span data-i18n="set.view"></span>
         <div class="segmented" id="setView">
-          <button data-v="normal">NORMAL</button><button data-v="wide">WIDE</button><button data-v="ultra">ULTRA 0.5×</button>
+          <button data-v="normal" data-i18n="set.view.normal"></button><button data-v="wide" data-i18n="set.view.wide"></button><button data-v="ultra" data-i18n="set.view.ultra"></button>
         </div>
       </div>
       <div class="settings-row">
-        <span>GRAPHICS</span>
+        <span data-i18n="set.graphics"></span>
         <div class="segmented" id="setQuality">
-          <button data-q="low">LOW</button><button data-q="balanced">BALANCED</button><button data-q="high">HIGH</button>
+          <button data-q="low" data-i18n="set.q.low"></button><button data-q="balanced" data-i18n="set.q.balanced"></button><button data-q="high" data-i18n="set.q.high"></button>
         </div>
       </div>
       <div class="settings-row">
-        <span>TOUCH CONTROLS</span>
+        <span data-i18n="set.touch"></span>
         <div class="segmented" id="setTouch">
-          <button data-t="auto">AUTO</button><button data-t="on">ON</button><button data-t="off">OFF</button>
+          <button data-t="auto" data-i18n="set.touch.auto"></button><button data-t="on" data-i18n="set.touch.on"></button><button data-t="off" data-i18n="set.touch.off"></button>
         </div>
       </div>
-      <label class="slider-row">TOUCH BUTTON SIZE <input type="range" id="setTouchScale" min="70" max="150" /><output id="outTouch">100%</output></label>
-      <label class="switch-row"><input type="checkbox" id="setShake" /> REDUCE CAMERA SHAKE</label>
-      <label class="switch-row"><input type="checkbox" id="setFps" /> SHOW FPS</label>
-      <button class="btn btn--danger" id="btnReset">RESET ALL PROGRESS</button>
-      <p class="settings-note">Progress saves automatically to this browser (localStorage). Corrupt fields are repaired individually — one bad number never wipes a save.</p>
+      <label class="slider-row"><span data-i18n="set.touchScale"></span> <input type="range" id="setTouchScale" min="70" max="150" /><output id="outTouch">100%</output></label>
+      <label class="switch-row"><input type="checkbox" id="setShake" /> <span data-i18n="set.shake"></span></label>
+      <label class="switch-row"><input type="checkbox" id="setFps" /> <span data-i18n="set.fps"></span></label>
+      <button class="btn btn--danger" id="btnReset" data-i18n="set.reset"></button>
+      <p class="settings-note" data-i18n="set.note"></p>
     </div>
   </section>
 
   <!-- ============================== PAUSE ============================== -->
   <section class="screen screen--modal" id="screen-pause">
     <div class="modal">
-      <h2>PAUSED</h2>
-      <p class="modal-sub" id="pauseSub">The experiment is on hold.</p>
+      <h2 data-i18n="pause.title"></h2>
+      <p class="modal-sub" id="pauseSub" data-i18n="pause.sub"></p>
       <div class="modal-buttons">
-        <button class="btn btn--primary" data-action="resume">RESUME</button>
-        <button class="btn" data-action="restart">RESTART</button>
-        <button class="btn" data-action="map">JOURNEY MAP</button>
-        <button class="btn" data-action="settings">SETTINGS</button>
-        <button class="btn btn--ghost" data-action="quit">MAIN MENU</button>
+        <button class="btn btn--primary" data-action="resume" data-i18n="pause.resume"></button>
+        <button class="btn" data-action="restart" data-i18n="pause.restart"></button>
+        <button class="btn" data-action="map" data-i18n="pause.map"></button>
+        <button class="btn" data-action="settings" data-i18n="pause.settings"></button>
+        <button class="btn btn--ghost" data-action="quit" data-i18n="pause.menu"></button>
       </div>
       <div class="map-panel" id="pauseMap"></div>
     </div>
@@ -159,24 +167,24 @@
   <!-- ============================ GAME OVER ============================ -->
   <section class="screen screen--modal" id="screen-gameover">
     <div class="modal modal--result">
-      <div class="ribbon" id="goRibbon">EXPERIMENT FAILED</div>
-      <h2 id="goTitle">SPLAT.</h2>
-      <p class="modal-sub" id="goSub">The lawn got another pilot.</p>
+      <div class="ribbon" id="goRibbon" data-i18n="go.ribbon"></div>
+      <h2 id="goTitle" data-i18n="go.title"></h2>
+      <p class="modal-sub" id="goSub" data-i18n="go.sub"></p>
       <div class="result-distance"><b id="goDistance">0 m</b><span id="goRegion">LAUNCH LAB</span></div>
       <div class="result-grid">
-        <div><span>SCORE</span><b id="goScore">0</b></div>
-        <div><span>BEST COMBO</span><b id="goCombo">0</b></div>
-        <div><span>COINS EARNED</span><b id="goCoins">0</b></div>
-        <div><span>BOOSTS USED</span><b id="goBoosts">0</b></div>
-        <div><span>SKILLS FIRED</span><b id="goSkills">0</b></div>
-        <div><span>SPRINGS HIT</span><b id="goSprings">0</b></div>
+        <div><span data-i18n="go.score"></span><b id="goScore">0</b></div>
+        <div><span data-i18n="go.combo"></span><b id="goCombo">0</b></div>
+        <div><span data-i18n="go.coins"></span><b id="goCoins">0</b></div>
+        <div><span data-i18n="go.boosts"></span><b id="goBoosts">0</b></div>
+        <div><span data-i18n="go.skills"></span><b id="goSkills">0</b></div>
+        <div><span data-i18n="go.springs"></span><b id="goSprings">0</b></div>
       </div>
       <p class="shapi-quote" id="goQuote">"Science is mostly falling over. Repeatedly."</p>
       <div class="modal-buttons">
-        <button class="btn btn--primary" data-action="retry">RETRY <small>Enter</small></button>
-        <button class="btn" data-action="upgrades">UPGRADES</button>
-        <button class="btn" data-action="characters">PILOTS</button>
-        <button class="btn btn--ghost" data-action="menu">MENU</button>
+        <button class="btn btn--primary" data-action="retry"><span data-i18n="go.retry"></span> <small>Enter</small></button>
+        <button class="btn" data-action="upgrades" data-i18n="go.upgrades"></button>
+        <button class="btn" data-action="characters" data-i18n="go.pilots"></button>
+        <button class="btn btn--ghost" data-action="menu" data-i18n="go.menu"></button>
       </div>
     </div>
   </section>
@@ -188,14 +196,22 @@
       <button class="tbtn" data-touch="right" aria-label="Steer right">▶</button>
     </div>
     <div class="touch-right">
-      <button class="tbtn tbtn--skill" data-touch="skill" aria-label="Skill">★<small>SKILL</small></button>
-      <button class="tbtn tbtn--boost" data-touch="boost" aria-label="Boost">➤<small>BOOST</small></button>
+      <button class="tbtn tbtn--skill" data-touch="skill" aria-label="Skill">★<small data-i18n="hud.touch.skill"></small></button>
+      <button class="tbtn tbtn--boost" data-touch="boost" aria-label="Boost">➤<small data-i18n="hud.touch.boost"></small></button>
     </div>
   </div>
   <button class="fs-fab" id="fsBtn" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button>
   <button class="pause-fab" id="pauseBtn" aria-label="Pause">❚❚</button>
   <div class="fps-readout" id="fpsReadout">60 fps</div>
-  <div class="loading" id="loading"><div class="loading-inner"><span>CALIBRATING LAUNCH MACHINE…</span><div class="bar"><i></i></div></div></div>
+  <div class="standalone" id="standaloneGate" hidden>
+    <div class="standalone-card">
+      <h1 data-i18n="standalone.title"></h1>
+      <p data-i18n="standalone.body"></p>
+      <button class="btn btn--primary btn--big" id="standaloneGo" data-i18n="standalone.go"></button>
+      <button class="btn btn--ghost" id="standaloneSkip" data-i18n="standalone.skip"></button>
+    </div>
+  </div>
+  <div class="loading" id="loading"><div class="loading-inner"><span data-i18n="loading"></span><div class="bar"><i></i></div></div></div>
 </div>
 <script type="module" src="src/main.js"></script>
 </body>

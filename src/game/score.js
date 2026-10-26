@@ -1,5 +1,6 @@
 /** Distance, collections, combo chains and skill bonuses. */
 import { COMBO_TIERS, ECONOMY, PX_PER_METER } from '../config/config.js';
+import { t as tr } from '../core/i18n.js';
 
 export class ScoreTracker {
   constructor() {
@@ -72,9 +73,10 @@ export class ScoreTracker {
     }
     if (tier > this.tierIndex) {
       this.tierIndex = tier;
-      const t = COMBO_TIERS[tier - 1];
-      this.lastTierLabel = t.label;
-      return { combo: this.combo, tier, tierUp: true, label: t.label, colour: t.colour };
+      const tierDef = COMBO_TIERS[tier - 1];
+      const label = tr(`combo.${tier}`);
+      this.lastTierLabel = label;
+      return { combo: this.combo, tier, tierUp: true, label, colour: tierDef.colour };
     }
     return { combo: this.combo, tier, tierUp: false };
   }

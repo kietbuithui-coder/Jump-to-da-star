@@ -33,6 +33,14 @@ export const CHARACTERS = {
     colours: { main: '#6fcf3a', dark: '#3f8a1f', light: '#c6f24e', accent: '#ffd93b' },
     strengths: ['Easiest to fly', 'Best springs', 'Forgiving arcs'],
     weaknesses: ['Average speed', 'Poor brakes'],
+    vi: {
+      tagline: 'LÒ XO SINH HỌC · DỄ',
+      blurb:
+        'Một con ếch mập mặc áo blouse đã biến đôi chân mình thành hai cái lò xo công nghiệp. Bay cao, nảy êm, đáp rất dễ.',
+      strengths: ['Dễ bay nhất', 'Nảy tốt nhất', 'Quỹ đạo dễ chịu'],
+      weaknesses: ['Tốc độ trung bình', 'Phanh kém'],
+      skill: { name: 'LÒ XO SINH HỌC', desc: 'Chân biến thành lò xo khổng lồ: cú đá cực mạnh lên trên. Pad lò xo còn nảy bạn cao hơn nữa.' },
+    },
     sfx: 'sproing',
     unlockCost: 0,
   },
@@ -66,6 +74,14 @@ export const CHARACTERS = {
     colours: { main: '#fff7e8', dark: '#e2a25c', light: '#ffffff', accent: '#ff6b3d' },
     strengths: ['Sustained flight', 'Precise steering', 'Great top speed'],
     weaknesses: ['Weak instant boost', 'Thirsty engines'],
+    vi: {
+      tagline: 'PHẢN LỰC HOẢNG · TRUNG BÌNH',
+      blurb:
+        'Hai động cơ phản lực lệch nhau gắn vào một con gà rất tự tin. Giữ kỹ năng để đốt nhiên liệu và bay như thể bạn cố ý.',
+      strengths: ['Bay lâu', 'Lái chính xác', 'Tốc độ cao'],
+      weaknesses: ['Boost yếu', 'Ngốn nhiên liệu'],
+      skill: { name: 'PHẢN LỰC HOẢNG', desc: 'GIỮ để bay liên tục. Vẫn lái được khi động cơ chạy. Coi chừng nhiên liệu — đó là đôi cánh của bạn.' },
+    },
     sfx: 'fwooom',
     unlockCost: 900,
   },
@@ -99,6 +115,14 @@ export const CHARACTERS = {
     colours: { main: '#ffcf3d', dark: '#c98a12', light: '#fff1a8', accent: '#ff9f1c' },
     strengths: ['Resource magnet', 'Big energy tank', 'Floaty arcs'],
     weaknesses: ['Light in wind', 'Slow to accelerate'],
+    vi: {
+      tagline: 'TỪ TÍNH PHÔ MAI · TRUNG BÌNH',
+      blurb:
+        'Một miếng phô mai linh thiêng biết hút năng lượng về phía mình. Trọng lực nhẹ, quỹ đạo bay lơ lửng.',
+      strengths: ['Hút tài nguyên', 'Bình năng lượng lớn', 'Bay lơ lửng'],
+      weaknesses: ['Nhẹ, dễ bị gió', 'Tăng tốc chậm'],
+      skill: { name: 'TỪ TÍNH PHÔ MAI', desc: 'GIỮ để hút năng lượng, coin và boost gần đó — và hơi trôi về cụm loot ngon nhất.' },
+    },
     sfx: 'squelch',
     unlockCost: 1800,
   },
@@ -132,6 +156,14 @@ export const CHARACTERS = {
     colours: { main: '#ffb4c4', dark: '#d96a86', light: '#ffe0e8', accent: '#8fd6ff' },
     strengths: ['Massive bounce payoff', 'Strong boosts', 'Heavy in wind'],
     weaknesses: ['Dive is lethal if missed', 'Small energy tank'],
+    vi: {
+      tagline: 'THIÊN THẠCH ĐẬP · KHÓ',
+      blurb:
+        'Một con heo tin rằng trọng lực chỉ là gợi ý. Bổ nhào để lấy động năng rồi biến nó thành cú phóng khổng lồ.',
+      strengths: ['Cú nảy cực mạnh', 'Boost khoẻ', 'Nặng, ít bị gió'],
+      weaknesses: ['Bổ nhào trượt là chết', 'Bình năng lượng nhỏ'],
+      skill: { name: 'THIÊN THẠCH ĐẬP', desc: 'Bổ nhào để tích động năng. Đáp trúng pad sẽ biến nó thành cú phóng khổng lồ. Trượt thì thành cái hố hình con heo.' },
+    },
     sfx: 'thoomp',
     unlockCost: 3000,
   },
@@ -165,6 +197,14 @@ export const CHARACTERS = {
     colours: { main: '#c9d6e8', dark: '#5b6a86', light: '#ffffff', accent: '#c58bff' },
     strengths: ['Highest ceiling', 'Answer to every situation', 'Strong tech bonuses'],
     weaknesses: ['Punishing mode timing', 'No passive power'],
+    vi: {
+      tagline: 'GLITCH BOOST · KHÓ',
+      blurb:
+        'Một lỗi hệ thống được cấp phép bay. Xoay vòng ba chế độ, mỗi chế độ mạnh ở một thời điểm khác nhau.',
+      strengths: ['Trần sức mạnh cao nhất', 'Xử lý mọi tình huống', 'Thưởng kỹ thuật cao'],
+      weaknesses: ['Canh nhịp chế độ khó', 'Không có sức mạnh thụ động'],
+      skill: { name: 'GLITCH BOOST', desc: 'Kích hoạt chế độ đang hiện: POWER (bật mạnh), CONTROL (đổi hướng tức thì), RECOVERY (ổn định). Chế độ tiếp theo luôn hiển thị.' },
+    },
     sfx: 'glitch',
     unlockCost: 4200,
   },

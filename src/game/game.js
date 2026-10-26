@@ -15,6 +15,7 @@ import {
   regionAt,
 } from '../config/config.js';
 import { clamp, clamp01, damp, lerp, RNG, formatMeters } from '../core/mathx.js';
+import { pick, pickSkill, regionLabel, t } from '../core/i18n.js';
 import { stepFlight } from './flight.js';
 import { padContact, resolvePadBounce } from './bounce.js';
 import { World } from './world.js';
@@ -132,6 +133,12 @@ export class Game {
     this.hintsShown.clear();
     this.boostLock = 0;
     this.tutorialStep = 0;
+    // Launch state MUST be reset, otherwise the charge bar is dead after a
+    // restart (launchHeld stayed true from the previous run).
+    this.launchHeld = false;
+    this.launchReleased = false;
+    this.launchPower = 0;
+    this.perfectLaunch = false;
     this.runStats = { boosts: 0, skills: 0, springs: 0, orbs: 0, nets: 0, padHits: 0 };
     this.lastRegion = null;
     this.statusFlash = 0;
@@ -285,6 +292,7 @@ export class Game {
     this.launchReleased = true;
     this.state = 'fly';
     this.audio?.sfx('launch');
+    this.audio?.sfx('ey', { volume: perfect ? 0.9 : 0.55, crowd: perfect ? 2 : 1, pitch: perfect ? 1.06 : 0.94, throttle: 0.2 });
     this.audio?.setScene('fly');
     this.camera.addShake(0.55);
     this.camera.pulseZoom(0.06);
@@ -466,17 +474,19 @@ export class Game {
     const metres = this.score.metres;
     // Tutorial hints fire once each and are spaced out, so two lines can never
     // land on top of each other mid-screen.
-    const hint = (key, atMetres, text, colour) => {
+    const hint = (key, atMetres, textKey, colour, vars) => {
       if (metres < atMetres || this.hintsShown.has(key)) return;
       if (this.time - (this.lastHintAt || -99) < 2.6) return;
       this.hintsShown.add(key);
       this.lastHintAt = this.time;
-      this.addFloater(text, p.x + 300, p.y - 230, colour, 20, 3.2);
+      this.addFloater(t(textKey, vars), p.x + 300, p.y - 230, colour, 20, 3.2);
     };
-    hint('boost', 30, 'SPACE / BOOST BUTTON — 3 boosts, spend them well', '#7ee8ff');
-    hint('skill', 120, `SHIFT / SKILL — ${CHARACTERS[this.characterId].skill.name}`, '#ffd93b');
-    hint('energy', 260, 'ENERGY = SKILL FUEL. Grab the orbs.', '#9ff7a0');
-    hint('spring', 420, 'PADS BOUNCE ALONG THEIR NORMAL — aim your landing!', '#ff9ad5');
+    const skillName = pickSkill(CHARACTERS[this.characterId], 'name');
+    hint('boost', 30, 'hint.boost', '#7ee8ff');
+    hint('skill', 120, 'hint.skill', '#ffd93b', { skill: skillName });
+    hint('energy', 260, 'hint.energy', '#9ff7a0');
+    hint('spring', 420, 'hint.spring', '#ff9ad5');
+    hint('sky', 700, 'hint.sky', '#7ee8ff');
   }
 
   updateAnimation(dt) {
@@ -862,7 +872,11 @@ export class Game {
         gravity: 520,
         glow: true,
       });
-      this.addFloater(def.name, p.x, p.y - 96, '#ffffff', 18, 0.8);
+      this.addFloater(pick(def, 'name'), p.x, p.y - 96, '#ffffff', 18, 0.8);
+      if (p.y < this.world.floorAt(p.x) - 1300) {
+        // grabbed something from the high shelf: the lab is impressed
+        this.audio?.sfx('ooh', { volume: 0.5, crowd: 2, pitch: 1.1 });
+      }
     }
     p.springBuff = Math.max(0, (p.springBuff || 0) - 0.3);
     this.screenFlash = Math.min(1, (this.screenFlash || 0) + 0.18);
@@ -1044,6 +1058,10 @@ export class Game {
     if (chain.tierUp) {
       this.addFloater(chain.label, p.x + 40, p.y - 190, chain.colour, 34, 1.4, true);
       this.audio?.sfx('ding', { pitch: 1 + chain.tier * 0.07, volume: 0.8 });
+      if (chain.tier >= 3) {
+        // the crowd starts believing
+        this.audio?.sfx('ooh', { volume: 0.45 + Math.min(0.4, chain.tier * 0.05), crowd: Math.min(3, chain.tier - 1), pitch: 0.95 + chain.tier * 0.02 });
+      }
       this.camera.addShake(0.18);
       this.particles.burst(p.x, p.y - 60, 18, {
         colour: [chain.colour, '#ffffff'],
@@ -1076,6 +1094,7 @@ export class Game {
     p.expression = 'dead';
     p.rideUfo = null;
     this.audio?.sfx('dead');
+    this.audio?.sfx('ooh', { volume: 0.6, crowd: 1, pitch: 0.78, dur: 1.25 });
     this.audio?.setScene('gameover');
     this.camera.addShake(0.8);
     this.camera.pulseZoom(0.05);
@@ -1128,7 +1147,7 @@ export class Game {
     const region = regionAt(this.score.metres);
     if (this.lastRegion !== region.id) {
       if (this.lastRegion) {
-        this.addFloater(region.name, this.player.x + 420, this.player.y - 240, region.hue, 34, 2.6, true);
+        this.addFloater(regionLabel(region, false), this.player.x + 420, this.player.y - 240, region.hue, 34, 2.6, true);
         this.audio?.sfx('ding', { pitch: 1.1, volume: 0.8 });
         this.camera.addShake(0.2);
         this.particles.burst(this.player.x + 200, this.player.y - 120, 26, {

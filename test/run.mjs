@@ -60,6 +60,7 @@ const { sweptCircleSegment, applyGravity, applyDrag } = await import('../src/gam
 const { PHYS, LAUNCH, BOOST, PX_PER_METER, REGIONS, regionAt, QUALITY } = await import('../src/config/config.js');
 const { zoomForViewport, VIEW_SCALES } = await import('../src/game/camera.js');
 const { TRACKS, eventsAt, loopEvents, trackLength, stepSeconds, hz } = await import('../src/game/music.js');
+const i18n = await import('../src/core/i18n.js');
 const { ScoreTracker } = await import('../src/game/score.js');
 const { Loop } = await import('../src/core/loop.js');
 const { simulateFlight } = await import('./autopilot.mjs');
@@ -750,6 +751,236 @@ check('scene changes swap the track without leaking schedulers', () => {
   return 'menu 128 · fly 138 · gameover 96';
 });
 
+/* ============================================================= 6d. VOICES */
+group('voices');
+
+function fakeAudioEngine(opts = {}) {
+  const { AudioEngine } = audioModule;
+  const log = { osc: [], noise: [], filters: [] };
+  const param = (v) => ({
+    value: v,
+    setValueAtTime(x) { this.value = x; },
+    linearRampToValueAtTime(x) { this.value = x; },
+    exponentialRampToValueAtTime(x) { this.value = x; },
+    setTargetAtTime(x) { this.value = x; },
+    cancelScheduledValues() {},
+  });
+  const node = (extra = {}) => ({ connect() {}, disconnect() {}, ...extra });
+  const ctx = {
+    currentTime: 0,
+    sampleRate: 48000,
+    state: 'running',
+    destination: node(),
+    createGain: () => node({ gain: param(1) }),
+    createDynamicsCompressor: () => node({ threshold: param(0), knee: param(0), ratio: param(1), attack: param(0), release: param(0) }),
+    createOscillator: () => {
+      const o = node({ type: 'sine', frequency: param(440), detune: param(0), start: () => {}, stop() {} });
+      log.osc.push(o);
+      return o;
+    },
+    createBiquadFilter: () => {
+      const f = node({ type: 'lowpass', frequency: param(400), Q: param(1) });
+      log.filters.push(f);
+      return f;
+    },
+    createBuffer: (c, len) => ({ getChannelData: () => new Float32Array(len), length: len }),
+    createBufferSource: () => {
+      log.noise.push(1);
+      return node({ buffer: null, playbackRate: param(1), start: () => {}, stop: () => {} });
+    },
+    resume: () => Promise.resolve(),
+  };
+  const prevWindow = globalThis.window;
+  globalThis.window = { AudioContext: function () { return ctx; }, addEventListener() {}, removeEventListener() {} };
+  const engine = new AudioEngine({ master: 1, music: 0, sfx: 1, ...opts });
+  engine.unlock();
+  engine.dispose(); // no music timer during the test
+  engine.ready = true;
+  return {
+    engine,
+    log,
+    cleanup: () => {
+      globalThis.window = prevWindow;
+    },
+  };
+}
+
+check('"ey" and "ooh" are real formant voices, not beeps', () => {
+  for (const vowel of ['ey', 'ooh']) {
+    const { engine, log, cleanup } = fakeAudioEngine();
+    try {
+      log.osc.length = 0;
+      log.filters.length = 0;
+      log.noise.length = 0;
+      engine.voice(vowel, { volume: 1, crowd: 2 });
+      assert(log.osc.length >= 3, `${vowel}: expected layered voices, got ${log.osc.length} oscillators`);
+      // each voice routes through 3 formant band-passes
+      const bandpasses = log.filters.filter((f) => f.type === 'bandpass');
+      assert(bandpasses.length >= 9, `${vowel}: expected 3 formants per voice, got ${bandpasses.length}`);
+      assert(log.noise.length >= 1, `${vowel}: no breath layer`);
+      // vibrato LFO: at least one extra oscillator per voice
+      assert(log.osc.length >= 6, `${vowel}: vibrato missing`);
+    } finally {
+      cleanup();
+    }
+  }
+  return '2 vowels × 3 voices × 3 formants + breath';
+});
+
+check('the crowd gets louder with more voices and stays capped', () => {
+  const sizes = [];
+  for (const crowd of [0, 1, 4, 12]) {
+    const { engine, log, cleanup } = fakeAudioEngine();
+    try {
+      log.osc.length = 0;
+      engine.voice('ooh', { crowd });
+      sizes.push(log.osc.length);
+    } finally {
+      cleanup();
+    }
+  }
+  assert(sizes[0] < sizes[1] && sizes[1] < sizes[2], `voice count did not scale: ${sizes.join(',')}`);
+  assert(sizes[3] === sizes[2], `crowd was not capped: ${sizes.join(',')}`);
+  return `crowd 0/1/4/12 → ${sizes.join('/')} oscillators (capped at 4 voices)`;
+});
+
+check('a broken WebAudio graph cannot crash a run (voice is contained)', () => {
+  const { engine, cleanup } = fakeAudioEngine();
+  try {
+    engine.ctx.createBiquadFilter = () => ({ connect() {}, frequency: {}, Q: {} }); // missing ramps
+    engine.voice('ey', {});
+    engine.sfx('ooh');
+    engine.sfx('ey');
+  } finally {
+    cleanup();
+  }
+  return 'failures are swallowed, gameplay continues';
+});
+
+check('perfect launch cheers and finishing a combo makes the crowd go ooh', () => {
+  const { engine, log, cleanup } = fakeAudioEngine();
+  try {
+    const played = [];
+    engine.sfx = (name) => played.push(name);
+    const { game } = makeGame(77);
+    game.audio = engine;
+    game.state = 'launch';
+    game.launchReleased = false;
+    game.launchHeld = false;
+    game.launchPower = 0;
+    const hold = { isDown: (a) => a === 'boost', axis: 0, consume: () => false, buffered: () => false };
+    for (let i = 0; i < 48; i++) game.updateLaunch(DT, hold);
+    game.updateLaunch(DT, { isDown: () => false, axis: 0, consume: () => false, buffered: () => false });
+    assert(played.includes('ey'), 'perfect launch did not trigger the "ey" cheer');
+
+    played.length = 0;
+    game.score.combo = 9;
+    game.score.tierIndex = 2;
+    game.score.addCombo(1); // crosses tier 3 → crowd
+    const chain = { combo: 12, tier: 3, tierUp: true, label: 'TEST', colour: '#fff' };
+    game.onCombo(chain, game.player);
+    assert(played.includes('ooh'), 'big combo did not trigger the crowd');
+  } finally {
+    cleanup();
+  }
+  return 'launch → "ey", big combo → "ooh"';
+});
+
+/* ================================================================= 6e. I18N */
+group('i18n');
+
+check('every translation key has both Vietnamese and English text', () => {
+  const src = fs.readFileSync(path.join(root, 'src/core/i18n.js'), 'utf8');
+  const entries = [...src.matchAll(/'([a-z0-9.]+)':\s*\{\s*en:/g)].map((m) => m[1]);
+  assert(entries.length > 100, `only ${entries.length} keys found`);
+  // every en/vi pair must be non-empty
+  const pairs = [...src.matchAll(/'([a-z0-9.]+)':\s*\{\s*en:\s*('[^']*'|"[^"]*"),\s*vi:\s*('[^']*'|"[^"]*")/g)];
+  const broken = entries.filter((k) => !pairs.some((p) => p[1] === k));
+  assert(broken.length === 0, `keys missing a vi string: ${broken.slice(0, 6).join(', ')}`);
+  return `${entries.length} bilingual keys`;
+});
+
+check('every data-i18n attribute in the markup has a translation', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const keys = new Set([
+    ...[...html.matchAll(/data-i18n="([^"]+)"/g)].map((m) => m[1]),
+    ...[...html.matchAll(/data-i18n-title="([^"]+)"/g)].map((m) => m[1]),
+  ]);
+  const missing = [...keys].filter((k) => i18n.t(k) === k);
+  assert(missing.length === 0, `untranslated: ${missing.join(', ')}`);
+  return `${keys.size} markup keys resolve`;
+});
+
+check('switching language changes what the player reads', () => {
+  const prev = i18n.getLang();
+  i18n.setLang('vi', { persist: false });
+  const viPlay = i18n.t('menu.play');
+  const viEnergy = i18n.t('hud.energy');
+  const viSkill = i18n.pickSkill(CHARACTERS.frog, 'name');
+  i18n.setLang('en', { persist: false });
+  const enPlay = i18n.t('menu.play');
+  const enSkill = i18n.pickSkill(CHARACTERS.frog, 'name');
+  assert(viPlay === 'CHƠI' && enPlay === 'PLAY', `play label ${viPlay}/${enPlay}`);
+  assert(viEnergy === 'NĂNG LƯỢNG', `energy label ${viEnergy}`);
+  assert(viSkill === 'LÒ XO SINH HỌC', `vi skill ${viSkill}`);
+  assert(enSkill === 'BIO SPRING', `en skill ${enSkill}`);
+  i18n.setLang(prev, { persist: false });
+  return `${viPlay} / ${enPlay} · ${viSkill} / ${enSkill}`;
+});
+
+check('all five pilots, all items and all upgrades carry Vietnamese text', () => {
+  for (const c of Object.values(CHARACTERS)) {
+    assert(c.vi && c.vi.blurb && c.vi.skill && c.vi.skill.name && c.vi.skill.desc, `${c.id} missing vi block`);
+  }
+  for (const d of Object.values(ITEM_DEFS)) {
+    assert(d.vi && d.vi.name && d.vi.desc, `item ${d.id} missing vi`);
+  }
+  for (const u of UPGRADE_INFO) {
+    assert(u.vi && u.vi.label && u.vi.desc, `upgrade ${u.id} missing vi`);
+  }
+  return `${Object.keys(CHARACTERS).length} pilots · ${Object.keys(ITEM_DEFS).length} items · ${UPGRADE_INFO.length} upgrades`;
+});
+
+check('Vietnamese and English use the same placeholders', () => {
+  const src = fs.readFileSync(path.join(root, 'src/core/i18n.js'), 'utf8');
+  const rows = [...src.matchAll(/'([a-z0-9.]+)':\s*\{\s*en:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'),\s*vi:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g)];
+  assert(rows.length > 100, `only ${rows.length} pairs parsed`);
+  const grab = (str) => [...str.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
+  const bad = rows.filter((r) => grab(r[2]) !== grab(r[3])).map((r) => r[1]);
+  assert(bad.length === 0, `placeholder mismatch: ${bad.join(', ')}`);
+  // and every ${'{'}var{'}'} a caller passes must exist in both languages (spot check)
+  const text = i18n.t('hud.power', { n: 42 });
+  assert(/42/.test(text), `hud.power did not interpolate: ${text}`);
+  return `${rows.length} pairs, placeholders agree`;
+});
+
+check('regions and combo tiers are localised too', () => {
+  const prev = i18n.getLang();
+  i18n.setLang('vi', { persist: false });
+  const lab = i18n.regionLabel(REGIONS[0], false);
+  const star = i18n.regionLabel(REGIONS[4], true);
+  const combo = i18n.t('combo.7');
+  i18n.setLang('en', { persist: false });
+  const labEn = i18n.regionLabel(REGIONS[0], false);
+  const comboEn = i18n.t('combo.7');
+  i18n.setLang(prev, { persist: false });
+  assert(lab !== labEn, 'region name did not change');
+  assert(combo !== comboEn, 'combo label did not change');
+  return `${lab} / ${labEn} · ${star} · ${combo}`;
+});
+
+check('the save file remembers the chosen language', () => {
+  const storage = fakeStorage();
+  const store = new SaveStore(storage);
+  store.data.settings.lang = 'en';
+  store.save();
+  const again = new SaveStore(storage);
+  assert(again.data.settings.lang === 'en', 'language not persisted');
+  const broken = sanitizeSave({ settings: { lang: 'klingon' } });
+  assert(broken.settings.lang === 'vi', 'invalid language did not fall back');
+  return 'en persists, garbage falls back to vi';
+});
+
 /* ================================================================ 7. SCORE */
 group('scoring');
 
@@ -764,6 +995,8 @@ check('distance never decreases when flying backwards', () => {
 });
 
 check('combo grows, decays and stops at the top tier label', () => {
+  const previous = i18n.getLang();
+  i18n.setLang('en', { persist: false });
   const s = new ScoreTracker();
   s.reset(0);
   let tierUp = null;
@@ -775,7 +1008,17 @@ check('combo grows, decays and stops at the top tier label', () => {
   assert(tierUp === 'SHAPI APPROVES!', `top tier label was ${tierUp}`);
   s.update(2.9);
   assert(s.combo === 0, 'combo expired after idle time');
-  return `${tierUp}`;
+  i18n.setLang('vi', { persist: false });
+  const vi = new ScoreTracker();
+  vi.reset(0);
+  let viLabel = null;
+  for (let i = 0; i < 45; i++) {
+    const r = vi.addCombo(1);
+    if (r && r.tierUp) viLabel = r.label;
+  }
+  assert(viLabel === 'SHAPI DUYỆT!', `vi top tier label was ${viLabel}`);
+  i18n.setLang(previous, { persist: false });
+  return `${tierUp} / ${viLabel}`;
 });
 
 check('score = distance + collection + combo + skill', () => {
@@ -1142,7 +1385,8 @@ check('index.html contains every element the code looks up', () => {
     const text = fs.readFileSync(path.join(root, file), 'utf8');
     for (const m of text.matchAll(/id="([A-Za-z0-9_-]+)"/g)) ids.add(m[1]);
   }
-  const missing = [...wanted].filter((id) => !ids.has(id));
+  const DYNAMIC_IDS = new Set(['newTabHint', 'standaloneGate', 'standaloneGo', 'standaloneSkip']);
+  const missing = [...wanted].filter((id) => !ids.has(id) && !DYNAMIC_IDS.has(id));
   assert(missing.length === 0, `missing ids: ${missing.join(', ')}`);
   return `${wanted.size} ids referenced, all present`;
 });

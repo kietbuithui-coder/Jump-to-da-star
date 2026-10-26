@@ -414,3 +414,51 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   transition: background 0.15s ease, transform 0.12s ease;
 }
 .chip--btn:hover { background: rgba(255, 255, 255, 0.14); transform: translateY(-1px); }
+
+/* ---------------------------------------------------- open in new tab button */
+.btn--open {
+  width: 100%; margin-top: 4px;
+  background: linear-gradient(180deg, rgba(126, 232, 255, 0.18), rgba(126, 232, 255, 0.06));
+  border-color: rgba(126, 232, 255, 0.5) !important;
+  color: #dff6ff !important;
+}
+.btn--open:hover { background: linear-gradient(180deg, rgba(126, 232, 255, 0.3), rgba(126, 232, 255, 0.12)); }
+.btn--open span { color: #7ee8ff; }
+
+/* --------------------------------------------------------- standalone gate */
+.standalone {
+  position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 40%, #24114d 0%, #0b0620 70%);
+  padding: 24px;
+}
+.standalone[hidden] { display: none; }
+.standalone-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+  max-width: 520px; width: 100%;
+}
+.standalone-card h1 {
+  margin: 0; font-family: var(--font-display); font-size: clamp(24px, 5vw, 44px);
+  letter-spacing: 2px; color: #ffd93b; text-shadow: 0 4px 0 #7a4b0a, 0 0 24px rgba(255, 217, 59, 0.4);
+}
+.standalone-card p { margin: 0; color: rgba(255, 244, 214, 0.85); font-size: clamp(13px, 2.4vw, 16px); }
+.btn--big { font-size: clamp(15px, 2.6vw, 19px); padding: 16px 28px; width: 100%; }
+.standalone-card .btn--ghost { opacity: 0.7; font-size: 12px; }
+
+/* -------------------------------------------------------- language control */
+#setLang button, #setView button { min-width: 78px; }
+#menuLang { font-weight: 900; }
+
+/* ------------------------------------------- "open in new tab" floating hint */
+.newtab-hint {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 45; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center;
+  padding: 10px 16px; border-radius: 14px; max-width: min(94vw, 720px);
+  background: rgba(12, 6, 32, 0.92); border: 2px solid rgba(126, 232, 255, 0.45);
+  color: #dff6ff; font-size: 12px; letter-spacing: 0.4px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.newtab-hint a {
+  color: #04121a; background: linear-gradient(180deg, #bff7ff, #7ee8ff);
+  padding: 8px 14px; border-radius: 10px; font-weight: 900; text-decoration: none; letter-spacing: 1px;
+  white-space: nowrap;
+}
+.newtab-hint a:hover { filter: brightness(1.08); }

@@ -4,6 +4,7 @@ export const MAX_LEVEL = 5;
 export const UPGRADE_INFO = [
   {
     id: 'launch',
+    vi: { label: 'LỰC PHÓNG', desc: 'Máy phóng thuyết phục hơn 5,5% mỗi cấp.' },
     label: 'LAUNCH POWER',
     desc: 'The catapult argument gets 5.5% more convincing per level.',
     effect: (lv) => `+${(lv * 5.5).toFixed(1)}% launch velocity`,
@@ -11,6 +12,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'boost',
+    vi: { label: 'ĐỘNG CƠ BOOST', desc: 'Xung boost mạnh hơn. Vẫn chỉ có ba lần thôi, anh hùng.' },
     label: 'BOOST ENGINE',
     desc: 'Bigger boost impulses. Still only three of them, hero.',
     effect: (lv) => `+${(lv * 7.5).toFixed(1)}% boost power`,
@@ -18,6 +20,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'energy',
+    vi: { label: 'DUNG TÍCH NĂNG LƯỢNG', desc: 'Bình to hơn nghĩa là dùng được nhiều kỹ năng hơn trước khi cạn.' },
     label: 'ENERGY CAPACITY',
     desc: 'A bigger tank means more skills before you are running on fumes.',
     effect: (lv) => `+${(lv * 8.5).toFixed(0)}% max energy`,
@@ -25,6 +28,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'aero',
+    vi: { label: 'KHÍ ĐỘNG HỌC', desc: 'Băng dính, sáp và một cái vây rất đáng ngờ. Trọng lực bớt khó chịu.' },
     label: 'AERODYNAMICS',
     desc: 'Duct tape, wax and one very questionable fin. Gravity minds less.',
     effect: (lv) => `-${(lv * 2.2).toFixed(1)}% gravity · -${(lv * 5).toFixed(0)}% drag`,
@@ -32,6 +36,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'steer',
+    vi: { label: 'LÁI', desc: 'Điều khiển trên không mạnh hơn để nhắm pad tiếp theo ở tốc độ cao.' },
     label: 'STEERING',
     desc: 'Stronger air control to line up the next pad at speed.',
     effect: (lv) => `+${(lv * 7).toFixed(0)}% steering authority`,
@@ -39,6 +44,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'efficiency',
+    vi: { label: 'HIỆU SUẤT NĂNG LƯỢNG', desc: 'Kỹ năng tốn ít năng lượng hơn mỗi cấp.' },
     label: 'ENERGY EFFICIENCY',
     desc: 'Skills cost less energy per level.',
     effect: (lv) => `-${(lv * 7).toFixed(0)}% skill energy cost`,
@@ -46,6 +52,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'synergy',
+    vi: { label: 'CỘNG HƯỞNG VẬT PHẨM', desc: 'Pad đá mạnh hơn và buff có tác dụng ngọt hơn.' },
     label: 'ITEM SYNERGY',
     desc: 'Pads kick harder and buffs land sweeter.',
     effect: (lv) => `+${(lv * 6).toFixed(0)}% item effect`,
@@ -53,6 +60,7 @@ export const UPGRADE_INFO = [
   },
   {
     id: 'skill',
+    vi: { label: 'KỸ NĂNG ĐẶC BIỆT', desc: 'Kỹ năng riêng của từng nhân vật mạnh hơn mỗi cấp.' },
     label: 'SPECIAL SKILL',
     desc: 'The signature move gets more absurd.',
     effect: (lv) => `+${(lv * 9).toFixed(0)}% skill power`,

@@ -11,7 +11,7 @@
  * risky high lines, rescue nets and hazards, scaled by distance.
  */
 import { PHYS, WORLD, PX_PER_METER, LAUNCH, regionAt } from '../config/config.js';
-import { RNG, clamp } from '../core/mathx.js';
+import { RNG, clamp, clamp01 } from '../core/mathx.js';
 import { ITEM_DEFS, REGION_ITEMS } from './items.js';
 import { resolvePadBounce } from './bounce.js';
 
@@ -166,7 +166,16 @@ export class World {
     const diff = this._difficultyAt(route.x);
     const rng = this.rng;
 
-    const maxHop = WORLD.routeStep + WORLD.routeStepVariance * (rng.next() * 2 - 1) + diff * 260;
+    const metres = Math.max(0, (route.x - this.startX) / PX_PER_METER);
+    // The launch lab is deliberately forgiving: wider pads, shorter hops, no
+    // tilt. The ramp fades out by ~700 m so the real game starts after.
+    const easing = clamp01(1 - metres / 700);
+    // Late-run scarcity: the far frontier really is emptier.
+    const late = clamp01((metres - 3000) / 14000);
+    const maxHop = Math.min(
+      3100,
+      (WORLD.routeStep + WORLD.routeStepVariance * (rng.next() * 2 - 1) + diff * 260) * (1 - easing * 0.22),
+    );
 
     // The corridor waves up and down inside a fixed band. `drop` is measured
     // from the current flight line, so consecutive pads step vertically by
@@ -174,7 +183,8 @@ export class World {
     const wave =
       Math.sin(this.nodeIndex * 0.42) * WORLD.waveAmp + Math.sin(this.nodeIndex * 0.13) * WORLD.waveAmp2;
     const desiredY = WORLD.routeBaseY + wave + rng.range(-150, 150) + diff * 60;
-    const drop = clamp(desiredY - (route.y - 30), -WORLD.dropMax, WORLD.dropMax);
+    const dropMax = WORLD.dropMax * (1 - easing * 0.35);
+    const drop = clamp(desiredY - (route.y - 30), -dropMax, dropMax);
 
     // ---- 1. fly the reference arc
     const sim = { x: route.x, y: route.y, vx: route.vx, vy: route.vy, t: 0 };
@@ -203,10 +213,10 @@ export class World {
     const pool = REGION_ITEMS[region.id] || REGION_ITEMS.lab;
     const padId = rng.pick(pool.pads);
     const def = ITEM_DEFS[padId];
-    let tilt = rng.chance(0.34) ? rng.range(-0.15, 0.15) : 0;
+    let tilt = rng.chance(0.34 * (1 - easing)) ? rng.range(-0.15, 0.15) : 0;
     const padX = sim.x;
     const padY = sim.y;
-    const width = def.width * (0.94 + rng.next() * 0.28);
+    const width = def.width * (0.94 + rng.next() * 0.28) * (1 + easing * 0.4);
     let nx = Math.sin(tilt);
     let ny = -Math.cos(tilt);
 
@@ -253,7 +263,9 @@ export class World {
 
     // ---- 4. loot along the reference arc (sparse, on the natural flight line)
     const density = this._densityAt(padX);
-    const spacing = 340 / Math.max(0.45, density);
+    // Loot also spreads out physically with distance: same clusters, further apart.
+    const thinOut = 1 + clamp01((metres - 700) / 22000) * 2.4;
+    const spacing = (340 / Math.max(0.24, density)) * thinOut;
     let acc = rng.range(0, spacing);
     for (let i = 1; i < samples.length; i++) {
       const s = samples[i];
@@ -281,8 +293,8 @@ export class World {
     }
 
     // ---- 5. risky high line: better loot that needs a boost or a skill to reach
-    if (this.nodeIndex > 1 && rng.chance(0.3 * (0.5 + diff))) {
-      const count = rng.int(2, 4);
+    if (this.nodeIndex > 1 && rng.chance(0.3 * (0.5 + diff) * (1 - late * 0.55))) {
+      const count = Math.max(1, Math.round(rng.int(2, 4) * (1 - late * 0.4)));
       const baseX = padX - rng.range(760, 1120);
       for (let i = 0; i < count; i++) {
         const roll = rng.next();
@@ -301,7 +313,7 @@ export class World {
     }
 
     // ---- 6. a tool: booster / buff / gate / ride near the line (not every hop)
-    if (rng.chance(0.74)) {
+    if (rng.chance(0.74 * (1 - late * 0.3))) {
       const midX = (padX + prevX) / 2 + rng.range(-180, 180);
       const choices = [];
       if (pool.boosters.length) choices.push(rng.pick(pool.boosters));

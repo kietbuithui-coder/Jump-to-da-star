@@ -17,6 +17,7 @@ import { drawSky, drawParallax } from './art/world.js';
 import { drawItemArt } from './art/items.js';
 import { clamp, formatMeters, formatScore } from './core/mathx.js';
 import { PAL, hexA, ellipse, fillPath, strokePath, rr, inked, starPath, linear } from './art/art.js';
+import { applyI18n, detectLang, getLang, onLangChange, pick, pickSkill, regionLabel, setLang, t } from './core/i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -26,6 +27,9 @@ const canvas = $('#game');
 const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
 const save = new SaveStore(safeStorage());
+// Language lives outside the save too, so it applies before the first paint.
+setLang(save.data.settings.lang || detectLang(), { persist: false });
+save.data.settings.lang = getLang();
 const audio = new AudioEngine(save.data.settings);
 const input = new Input(window);
 
@@ -39,7 +43,7 @@ const game = new Game({
   audio,
   onGameOver: handleGameOver,
   onEvent: (type, payload) => {
-    if (type === 'region') toast(payload.name, 1600, payload.hue);
+    if (type === 'region') toast(regionLabel(payload, false), 1600, payload.hue);
   },
 });
 
@@ -100,7 +104,7 @@ function showScreen(name) {
   if (name === 'settings') refreshSettings();
   if (name === 'pause') {
     $('#pauseMap').classList.remove('is-open');
-    $('#pauseSub').textContent = `${formatMeters(game.score.metres)} · ${game.region.name}`;
+    $('#pauseSub').textContent = `${formatMeters(game.score.metres)} · ${regionLabel(game.region, false)}`;
   }
 }
 
@@ -239,7 +243,7 @@ function buildCharacterCards() {
     card.innerHTML = `
       <canvas width="150" height="130"></canvas>
       <div class="cc-name">${c.name}</div>
-      <div class="cc-diff" style="color:${c.difficulty === 'EASY' ? '#9ff7a0' : c.difficulty === 'MEDIUM' ? '#ffd93b' : '#ff8a8a'}">${c.difficulty}</div>
+      <div class="cc-diff" style="color:${c.difficulty === 'EASY' ? '#9ff7a0' : c.difficulty === 'MEDIUM' ? '#ffd93b' : '#ff8a8a'}">${t(`diff.${c.difficulty.toLowerCase()}`)}</div>
     `;
     card.addEventListener('click', () => onCharacterClick(c.id));
     grid.appendChild(card);
@@ -263,7 +267,7 @@ function refreshCharacters() {
         lock.className = 'cc-lock';
         card.appendChild(lock);
       }
-      lock.innerHTML = `${c.unlockCost} ★ COINS`;
+      lock.innerHTML = t('char.unlockCost', { n: c.unlockCost });
       if (owned) owned.remove();
     } else {
       if (lock) lock.remove();
@@ -277,30 +281,55 @@ function refreshCharacters() {
   refreshCharDetail();
 }
 
+/* ------------------------------------------------------------ i18n helpers */
+const skillName = (c) => pickSkill(c, 'name');
+const skillDesc = (c) => pickSkill(c, 'desc');
+const blurbOf = (c) => pick(c, 'blurb');
+const listOf = (c, field) => (getLang() !== 'en' && c.vi && c.vi[field] ? c.vi[field] : c[field]);
+const upLabel = (info) => (getLang() !== 'en' && info.vi ? info.vi.label : info.label);
+const upDesc = (info) => (getLang() !== 'en' && info.vi ? info.vi.desc : info.desc);
+
+/** Upgrade effect text, localised without duplicating the maths. */
+function effectText(info, lv) {
+  const raw = info.effect(lv); // e.g. "+11.0% launch velocity"
+  if (getLang() === 'en') return raw;
+  const vi = {
+    launch: `+${(lv * 5.5).toFixed(1)}% tốc độ phóng`,
+    boost: `+${(lv * 7.5).toFixed(1)}% sức boost`,
+    energy: `+${(lv * 8.5).toFixed(0)}% năng lượng tối đa`,
+    aero: `-${(lv * 2.2).toFixed(1)}% trọng lực · -${(lv * 5).toFixed(0)}% lực cản`,
+    steer: `+${(lv * 7).toFixed(0)}% khả năng lái`,
+    efficiency: `-${(lv * 7).toFixed(0)}% chi phí kỹ năng`,
+    synergy: `+${(lv * 6).toFixed(0)}% hiệu quả vật phẩm`,
+    skill: `+${(lv * 8).toFixed(0)}% sức kỹ năng`,
+  };
+  return vi[info.id] || raw;
+}
+
 function refreshCharDetail() {
   const id = save.data.selected;
   const c = CHARACTERS[id];
   const st = resolveStats(c, save.data.upgrades[id] || {});
   const stats = [
-    ['LAUNCH', c.stats.launch],
-    ['BOUNCE', c.stats.bounce],
-    ['ENERGY', st.energyMax / 140],
-    ['STEER', c.stats.steer],
-    ['SPEED', c.stats.vxCap],
-    ['AGILITY', 1.6 - c.stats.gravity],
+    [t('char.stat.launch'), c.stats.launch],
+    [t('char.stat.bounce'), c.stats.bounce],
+    [t('char.stat.energy'), st.energyMax / 140],
+    [t('char.stat.steer'), c.stats.steer],
+    [t('char.stat.speed'), c.stats.vxCap],
+    [t('char.stat.agility'), 1.6 - c.stats.gravity],
   ];
   const detail = $('#charDetail');
   detail.innerHTML = `
     <div>
       <h3>${c.name}</h3>
-      <div class="cd-skill">SKILL · ${c.skill.name} ${c.skill.hold ? '(HOLD)' : ''}</div>
-      <p>${c.blurb}</p>
-      <p style="color:#bff7ff">${c.skill.desc}</p>
+      <div class="cd-skill">${t('char.skill')} · ${skillName(c)} ${c.skill.hold ? t('char.hold') : ''}</div>
+      <p>${blurbOf(c)}</p>
+      <p style="color:#bff7ff">${skillDesc(c)}</p>
       <div class="sw">
-        ${c.strengths.map((s) => `<span class="good">+ ${s}</span>`).join('')}
-        ${c.weaknesses.map((s) => `<span class="bad">− ${s}</span>`).join('')}
+        ${listOf(c, 'strengths').map((s) => `<span class="good">+ ${s}</span>`).join('')}
+        ${listOf(c, 'weaknesses').map((s) => `<span class="bad">− ${s}</span>`).join('')}
       </div>
-      <p style="opacity:.7">Unlocks: ${c.unlockCost === 0 ? 'available from the start' : `${c.unlockCost} Star Coins`}</p>
+      <p style="opacity:.7">${c.unlockCost === 0 ? t('char.unlockFree') : t('char.unlockCost', { n: c.unlockCost })}</p>
     </div>
     <div>
       <div class="stat-bars">
@@ -311,8 +340,8 @@ function refreshCharDetail() {
           .join('')}
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button class="btn btn--primary" id="detailPlay">PLAY AS ${c.name.split(' ')[0]}</button>
-        <button class="btn" id="detailUpgrade">UPGRADES</button>
+        <button class="btn btn--primary" id="detailPlay">${t('char.playAs')} ${c.name.split(' ')[0]}</button>
+        <button class="btn" id="detailUpgrade">${t('char.upgrades')}</button>
       </div>
     </div>
   `;
@@ -339,11 +368,11 @@ function onCharacterClick(id) {
       if (Object.values(data.unlocked).every(Boolean)) data.achievements.all_characters = true;
       save.save();
       audio.sfx('upgrade');
-      toast(`${c.name} RECRUITED!`, 1800, '#9ff7a0');
+      toast(t('toast.recruited', { name: c.name }), 1800, '#9ff7a0');
       refreshMenu();
     } else {
       audio.sfx('hit', { volume: 0.5 });
-      toast(`NEED ${c.unlockCost - data.coins} MORE STAR COINS`, 1500, '#ff9db0');
+      toast(t('toast.needCoins', { n: c.unlockCost - data.coins }), 1500, '#ff9db0');
       return;
     }
   } else {
@@ -379,13 +408,13 @@ function refreshUpgrades() {
   const st = resolveStats(c, lvls);
   $('#upgradeName').textContent = c.name;
   $('#upgradeStats').innerHTML = `
-    <div><span>Launch</span><b>${(st.launchMul * 100).toFixed(0)}%</b></div>
-    <div><span>Boost</span><b>${(st.boostMul * 100).toFixed(0)}%</b></div>
-    <div><span>Energy</span><b>${st.energyMax}</b></div>
-    <div><span>Gravity</span><b>${(st.gravityMul * 100).toFixed(0)}%</b></div>
-    <div><span>Skill cost</span><b>${(st.skillCostMul * 100).toFixed(0)}%</b></div>
-    <div><span>Skill power</span><b>${(st.skillPower * 100).toFixed(0)}%</b></div>
-    <div><span>Item bonus</span><b>+${((st.itemMul - 1) * 100).toFixed(0)}%</b></div>
+    <div><span>${t('up.stat.launch')}</span><b>${(st.launchMul * 100).toFixed(0)}%</b></div>
+    <div><span>${t('up.stat.boost')}</span><b>${(st.boostMul * 100).toFixed(0)}%</b></div>
+    <div><span>${t('up.stat.energy')}</span><b>${st.energyMax}</b></div>
+    <div><span>${t('up.stat.gravity')}</span><b>${(st.gravityMul * 100).toFixed(0)}%</b></div>
+    <div><span>${t('up.stat.skillCost')}</span><b>${(st.skillCostMul * 100).toFixed(0)}%</b></div>
+    <div><span>${t('up.stat.skillPower')}</span><b>${(st.skillPower * 100).toFixed(0)}%</b></div>
+    <div><span>${t('up.stat.item')}</span><b>+${((st.itemMul - 1) * 100).toFixed(0)}%</b></div>
   `;
   const list = $('#upgradeList');
   list.innerHTML = '';
@@ -396,13 +425,13 @@ function refreshUpgrades() {
     row.className = 'up-row';
     row.innerHTML = `
       <div>
-        <h4 style="color:${info.colour}">${info.label}</h4>
-        <p>${info.desc}</p>
-        <p style="color:#bff7ff">${lv > 0 ? info.effect(lv) : 'no modification yet'}</p>
+        <h4 style="color:${info.colour}">${upLabel(info)}</h4>
+        <p>${upDesc(info)}</p>
+        <p style="color:#bff7ff">${lv > 0 ? effectText(info, lv) : t('up.none')}</p>
         <div class="pips">${Array.from({ length: MAX_LEVEL }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('')}</div>
       </div>
       <button class="up-buy" ${cost == null || data.coins < cost ? 'disabled' : ''}>
-        ${cost == null ? 'MAXED' : `UPGRADE<small>${cost} ★</small>`}
+        ${cost == null ? t('up.maxed') : `${t('up.buy')}<small>${cost} ★</small>`}
       </button>
     `;
     const btn = row.querySelector('button');
@@ -410,14 +439,14 @@ function refreshUpgrades() {
       btn.addEventListener('click', () => {
         if (data.coins < cost) {
           audio.sfx('hit', { volume: 0.45 });
-          toast('NOT ENOUGH STAR COINS', 1300, '#ff9db0');
+          toast(t('toast.notEnough'), 1300, '#ff9db0');
           return;
         }
         data.coins -= cost;
         data.upgrades[id][info.id] = lv + 1;
         save.save();
         audio.sfx('upgrade');
-        toast(`${info.label} → LEVEL ${lv + 1}`, 1400, info.colour);
+        toast(t('toast.level', { label: upLabel(info), lv: lv + 1 }), 1400, info.colour);
         refreshUpgrades();
         refreshMenu();
       });
@@ -550,8 +579,24 @@ function refreshSettings() {
   $('#setShake').checked = !!s.reduceShake;
   $('#setFps').checked = !!s.showFps;
   for (const b of $$('#setView button')) b.classList.toggle('is-active', b.dataset.v === s.view);
+  for (const b of $$('#setLang button')) b.classList.toggle('is-active', b.dataset.l === (s.lang || getLang()));
   for (const b of $$('#setQuality button')) b.classList.toggle('is-active', b.dataset.q === s.quality);
   for (const b of $$('#setTouch button')) b.classList.toggle('is-active', b.dataset.t === s.touch);
+}
+
+function applyLanguage(next, { announce = true } = {}) {
+  const lang = setLang(next);
+  save.data.settings.lang = lang;
+  save.save();
+  applyI18n(document);
+  $('#menuLang').textContent = lang === 'vi' ? 'VI' : 'EN';
+  refreshMenu();
+  refreshSettings();
+  if (uiState.screen === 'characters') refreshCharacters();
+  if (uiState.screen === 'upgrades') refreshUpgrades();
+  if (uiState.screen === 'records') refreshRecords();
+  if (uiState.screen === 'pause') $('#pauseSub').textContent = `${formatMeters(game.score.metres)} · ${regionLabel(game.region, false)}`;
+  if (announce) toast(t('toast.lang', { lang: t('lang.name') }), 1100, '#7ee8ff');
 }
 
 function bindSettings() {
@@ -582,6 +627,12 @@ function bindSettings() {
     $('#outTouch').textContent = e.target.value + '%';
     apply();
   });
+  for (const b of $$('#setLang button')) {
+    b.addEventListener('click', () => {
+      audio.sfx('click');
+      applyLanguage(b.dataset.l);
+    });
+  }
   for (const b of $$('#setView button')) {
     b.addEventListener('click', () => {
       save.data.settings.view = b.dataset.v;
@@ -621,7 +672,7 @@ function bindSettings() {
     game.setCharacter(save.data.selected, save.data.upgrades);
     refreshMenu();
     refreshSettings();
-    toast('SAVE RESET. SCIENCE STARTS OVER.', 2000, '#ff9db0');
+    toast(t('toast.reset'), 2000, '#ff9db0');
   });
 }
 
@@ -693,24 +744,120 @@ function handleGameOver(summary) {
       ? 'The launch lab floor claims another volunteer.'
       : 'The pilot exceeded the documented universe.';
   $('#goDistance').textContent = formatMeters(summary.metres);
-  $('#goRegion').textContent = summary.floorReached;
+  $('#goRegion').textContent = regionLabel(summary.region || game.region, true);
   $('#goScore').textContent = formatScore(summary.score);
   $('#goCombo').textContent = `${summary.bestCombo}×`;
   $('#goCoins').textContent = `+${summary.coinsEarned}`;
   $('#goBoosts').textContent = String(summary.boostsUsed || 0);
   $('#goSkills').textContent = String(summary.skills || 0);
   $('#goSprings').textContent = String(summary.springs || 0);
-  const quotes = [
-    '"Science is mostly falling over. Repeatedly."',
-    '"That was not flying. That was a very long mistake."',
-    '"Note to self: the ground is still there."',
-    '"We shall call this result: data."',
-    '"The chicken would have made it. Probably."',
-    '"I have 47 years of experience and still no idea."',
-  ];
-  $('#goQuote').textContent = quotes[Math.floor(Math.random() * quotes.length)];
+  const quoteKey = `quote.${1 + Math.floor(Math.random() * 6)}`;
+  $('#goQuote').textContent = t(quoteKey);
   showScreen('gameover');
   $('#pauseBtn').classList.remove('is-on');
+}
+
+/**
+ * Open the game in a real top-level tab (outside the Arena preview iframe) and
+ * let it take the whole screen. Anchors with target=_blank survive iframe
+ * sandboxes far more often than window.open, so we try that first.
+ */
+function openInNewTab() {
+  audio.unlock();
+  const url = new URL(window.location.href);
+  url.searchParams.set('standalone', '1');
+  url.hash = '';
+  const href = url.toString();
+
+  // 1) Programmatic anchor click: usually allowed even inside a sandboxed iframe.
+  try {
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (_) {}
+
+  // 2) Guaranteed manual route: a real link the player taps themselves, which
+  //    no browser blocks (it is a direct user gesture).
+  showNewTabHint(href);
+}
+
+/** Floating "open in a new tab" link, shown for a few seconds after PLAY IN TAB. */
+function showNewTabHint(href) {
+  const existing = document.getElementById('newTabHint');
+  if (existing) existing.remove();
+  const box = document.createElement('div');
+  box.id = 'newTabHint';
+  box.className = 'newtab-hint';
+  box.innerHTML = `<span>${t('toast.newtab')}</span>`;
+  const link = document.createElement('a');
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = t('menu.newtab');
+  box.appendChild(link);
+  document.getElementById('app').appendChild(box);
+  const kill = setTimeout(() => box.remove(), 9000);
+  link.addEventListener('click', () => {
+    clearTimeout(kill);
+    box.remove();
+  });
+  box.addEventListener('click', (e) => {
+    if (e.target === box) {
+      clearTimeout(kill);
+      box.remove();
+    }
+  });
+}
+
+function isStandaloneRequest() {
+  try {
+    return new URL(window.location.href).searchParams.get('standalone') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function bindStandaloneGate() {
+  const gate = $('#standaloneGate');
+  if (!gate) return;
+  if (!isStandaloneRequest()) {
+    gate.hidden = true;
+    return;
+  }
+  // In a normal top-level tab we can take the whole screen; inside the preview
+  // iframe we cannot, so offer the button anyway and simply start in-tab.
+  gate.hidden = false;
+  const enter = async () => {
+    audio.unlock();
+    gate.hidden = true;
+    if (window.self === window.top) {
+      try {
+        const root = document.documentElement;
+        const req = root.requestFullscreen || root.webkitRequestFullscreen;
+        if (req && !document.fullscreenElement) await req.call(root, { navigationUI: 'hide' });
+        const orient = window.screen && window.screen.orientation;
+        if (orient && orient.lock) {
+          try {
+            await orient.lock('landscape');
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    setTimeout(resize, 200);
+    showScreen('menu');
+    refreshMenu();
+  };
+  $('#standaloneGo').addEventListener('click', enter);
+  $('#standaloneSkip').addEventListener('click', () => {
+    gate.hidden = true;
+    showScreen('menu');
+    refreshMenu();
+  });
 }
 
 function toggleFullscreen() {
@@ -733,7 +880,7 @@ function toggleFullscreen() {
         if (p && p.catch) p.catch(() => {});
       } catch (_) {}
     }
-    toast('FULLSCREEN — F hoặc ⛶ để thoát', 1500);
+    toast(t('toast.fullscreen.on'), 1500);
   } else {
     const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
     if (exit) {
@@ -779,10 +926,10 @@ function openJourneyMap() {
     ${REGIONS.map((r) => {
       const reached = m >= r.from;
       return `<div class="map-region"><span class="dot" style="background:${r.hue};opacity:${reached ? 1 : 0.25}"></span>
-        <span style="opacity:${reached ? 1 : 0.5}">${r.name}</span>
+        <span style="opacity:${reached ? 1 : 0.5}">${regionLabel(r, false)}</span>
         <b>${r.to === Infinity ? '∞' : r.to.toLocaleString('en-US') + ' m'}</b></div>`;
     }).join('')}
-    <p class="modal-sub" style="margin-top:10px">Current flight: <b style="color:#ffe86b">${formatMeters(m)}</b> · ${game.region.name}</p>
+    <p class="modal-sub" style="margin-top:10px">${t('map.current')}: <b style="color:#ffe86b">${formatMeters(m)}</b> · ${regionLabel(game.region, false)}</p>
   `;
 }
 
@@ -813,7 +960,7 @@ function bindInput() {
       save.data.settings.view = next;
       game.setViewMode(next);
       save.save();
-      toast(`VIEW: ${next.toUpperCase()}`, 1000, '#7ee8ff');
+      toast(t('toast.view', { mode: t(`set.view.${next}`) }), 1000, '#7ee8ff');
       e.preventDefault();
     }
     if (e.code === 'KeyF') {
@@ -822,7 +969,7 @@ function bindInput() {
     }
     if (e.code === 'KeyM' && !uiState.screen) {
       audio.setMuted(!audio.muted);
-      toast(audio.muted ? 'SOUND MUTED' : 'SOUND ON', 900);
+      toast(audio.muted ? t('toast.muted') : t('toast.soundOn'), 900);
     }
   });
 
@@ -888,6 +1035,15 @@ function bindInput() {
         break;
       case 'fullscreen':
         toggleFullscreen();
+        break;
+      case 'lang': {
+        const order = ['vi', 'en'];
+        const next = order[(order.indexOf(getLang()) + 1) % order.length];
+        applyLanguage(next);
+        break;
+      }
+      case 'newtab':
+        openInNewTab();
         break;
       case 'characters':
         showScreen('characters');
@@ -972,12 +1128,14 @@ loop.onSecond = (fps) => {
     save.save();
     game.setQuality('balanced');
     resize();
-    toast('AUTO-QUALITY: BALANCED (slow device detected)', 1800, '#ffd93b');
+    toast(t('toast.autoQuality'), 1800, '#ffd93b');
   }
 };
 
 // ---------------------------------------------------------------------- init
 function init() {
+  applyI18n(document);
+  $('#menuLang').textContent = getLang() === 'vi' ? 'VI' : 'EN';
   resize();
   game.setQuality(save.data.settings.quality);
   game.setCharacter(save.data.selected, save.data.upgrades);
@@ -985,6 +1143,8 @@ function init() {
   game.setViewMode(save.data.settings.view);
   bindInput();
   bindSettings();
+  bindStandaloneGate();
+  onLangChange(() => audio.sfx('click'));
   refreshMenu();
   refreshSettings();
   showScreen('menu');

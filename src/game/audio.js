@@ -302,9 +302,114 @@ export class AudioEngine {
         this.tone(660 * pitch, 0.14, { type: 'triangle', gain: 0.14 * vol });
         this.tone(990 * pitch, 0.18, { type: 'triangle', gain: 0.1 * vol, delay: 0.05 });
         break;
+      /* -------------------------------------------------------- voices */
+      case 'ooh': // "oohhhhh" — a crowd realising something went very right
+        this.voice('ooh', { pitch, volume: vol, crowd: opts.crowd ?? 2, dur: opts.dur });
+        break;
+      case 'ey': // "eyyyyyyyy" — the launch cheer
+        this.voice('ey', { pitch, volume: vol, crowd: opts.crowd ?? 1, dur: opts.dur });
+        break;
+      case 'ouch':
+        this.voice('ooh', { pitch: pitch * 0.7, volume: vol * 0.8, crowd: 0, dur: 0.45 });
+        break;
       default:
         break;
     }
+  }
+
+  /* --------------------------------------------------------- sung voices
+   * A crude but recognisable source-filter model: a buzzy saw source is pushed
+   * through three band-pass "formant" filters. Vowel identity is entirely in
+   * those formant frequencies, which is why "oo" and "ey" read as words and not
+   * as beeps. A little noise adds breath; a slow vibrato stops it sounding
+   * like a synth patch.
+   */
+  voice(vowel, opts = {}) {
+    if (!this.ready) return;
+    if (!this._voice(this.sfxBus, 1.2)) return;
+    try {
+      this._voiceImpl(vowel, opts);
+    } catch (err) {
+      // Old/partial WebAudio implementations: drop the voice, never the frame.
+      if (typeof console !== 'undefined' && !this._voiceWarned) {
+        this._voiceWarned = true;
+        console.warn('[jtts] vocal sfx unavailable:', err && err.message);
+      }
+    }
+  }
+
+  _voiceImpl(vowel, opts = {}) {
+    const pitch = opts.pitch ?? 1;
+    const vol = opts.volume ?? 1;
+    const dur = opts.dur ?? (vowel === 'ey' ? 0.62 : 0.9);
+    const crowd = opts.crowd ?? 1;
+
+    // vowel formants (F1, F2, F3) + pitch contour
+    const shapes = {
+      ooh: { f: [330, 780, 2200], q: [7, 9, 11], from: 210, to: 150, vib: 4.5, gain: 0.3 },
+      ey: { f: [480, 1900, 2600], q: [8, 10, 12], from: 190, to: 330, vib: 6.5, gain: 0.26 },
+    };
+    const shape = shapes[vowel] || shapes.ooh;
+    const t0 = this.ctx.currentTime;
+    const voices = Math.max(1, Math.min(4, crowd + 1));
+
+    for (let v = 0; v < voices; v++) {
+      const detune = v === 0 ? 0 : (Math.random() * 2 - 1) * 22;
+      const start = t0 + v * 0.012;
+      const level = (v === 0 ? 1 : 0.55) * vol * shape.gain;
+      const osc = this.ctx.createOscillator();
+      osc.type = v === 0 ? 'sawtooth' : 'square';
+      const f0 = shape.from * pitch * (1 + (v === 0 ? 0 : (Math.random() * 2 - 1) * 0.06));
+      osc.frequency.setValueAtTime(f0, start);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, shape.to * pitch), start + dur);
+      if (osc.detune) osc.detune.value = detune;
+
+      // vibrato
+      const lfo = this.ctx.createOscillator();
+      lfo.frequency.value = shape.vib;
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.value = 5 * pitch;
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+
+      // three parallel formant bands
+      const env = this.ctx.createGain();
+      env.gain.setValueAtTime(0.0001, start);
+      env.gain.linearRampToValueAtTime(level, start + 0.055);
+      env.gain.setValueAtTime(level, start + dur * 0.55);
+      env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      env.connect(this.sfxBus);
+
+      shape.f.forEach((freq, i) => {
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(freq * pitch, start);
+        // the vowel glides: "ey" opens then closes, "ooh" rounds out
+        const target = freq * pitch * (vowel === 'ey' ? 1.12 + i * 0.05 : 0.9);
+        bp.frequency.linearRampToValueAtTime(target, start + dur);
+        bp.Q.value = shape.q[i];
+        const g = this.ctx.createGain();
+        g.gain.value = i === 0 ? 1 : i === 1 ? 0.6 : 0.3;
+        osc.connect(bp);
+        bp.connect(g);
+        g.connect(env);
+      });
+
+      osc.start(start);
+      osc.stop(start + dur + 0.05);
+      lfo.start(start);
+      lfo.stop(start + dur + 0.05);
+    }
+
+    // breath: what makes it sound human rather than electrical
+    this.noise(dur * 0.9, {
+      gain: 0.05 * vol,
+      freq: vowel === 'ey' ? 2400 : 900,
+      to: vowel === 'ey' ? 3600 : 600,
+      type: 'bandpass',
+      q: 0.8,
+      delay: 0.02,
+    });
   }
 
   // ----------------------------------------------------------------- music

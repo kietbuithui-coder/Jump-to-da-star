@@ -4,6 +4,7 @@ import {
   bigText, shade, clamp01, lerp,
 } from './art.js';
 import { COMBO_TIERS, PX_PER_METER, REGIONS } from '../config/config.js';
+import { regionLabel, t as tr } from '../core/i18n.js';
 import { CHARACTERS, GLITCH_MODES, GLITCH_INFO } from '../game/characters.js';
 
 function panel(ctx, x, y, w, h, opts = {}) {
@@ -45,7 +46,7 @@ export function drawTopHUD(ctx, game, w, h, t, hudInset = 0) {
     stroke: PAL.ink,
     strokeWidth: 5,
   });
-  bigText(ctx, `SCORE ${s.score.toLocaleString('en-US')}`, pad + 16, pad + (compact ? 54 : 64), compact ? 14 : 16, '#ffe86b', {
+  bigText(ctx, tr('hud.score', { n: s.score.toLocaleString('en-US') }), pad + 16, pad + (compact ? 54 : 64), compact ? 14 : 16, '#ffe86b', {
     align: 'left',
     stroke: PAL.ink,
     strokeWidth: 3,
@@ -61,7 +62,7 @@ export function drawTopHUD(ctx, game, w, h, t, hudInset = 0) {
   ctx.arc(pad + dw + 28, pad + (compact ? 17 : 19), 5, 0, Math.PI * 2);
   ctx.fillStyle = region.hue;
   ctx.fill();
-  bigText(ctx, region.short, pad + dw + 40, pad + (compact ? 17 : 19), compact ? 12 : 14, '#ffffff', {
+  bigText(ctx, regionLabel(region, true), pad + dw + 40, pad + (compact ? 17 : 19), compact ? 12 : 14, '#ffffff', {
     align: 'left', stroke: null, strokeWidth: 0,
   });
   ctx.restore();
@@ -112,7 +113,7 @@ export function drawBottomHUD(ctx, game, w, h, t, touchMode) {
 
   // energy
   panel(ctx, bx - 6, by - 30, barW + 40, compact ? 58 : 70, { accent: '#7ee8ff', r: 14 });
-  bigText(ctx, 'ENERGY', bx + 8, by - 8, compact ? 12 : 14, '#bff7ff', { align: 'left', stroke: PAL.ink, strokeWidth: 3 });
+  bigText(ctx, tr('hud.energy'), bx + 8, by - 8, compact ? 12 : 14, '#bff7ff', { align: 'left', stroke: PAL.ink, strokeWidth: 3 });
   const frac = clamp01(p.energy / p.energyMax);
   rr(ctx, bx + 6, by + 4, barW, barH, barH / 2);
   ctx.fillStyle = 'rgba(8,20,32,0.85)';
@@ -158,13 +159,13 @@ export function drawBottomHUD(ctx, game, w, h, t, touchMode) {
     ctx.fill();
     ctx.restore();
   }
-  bigText(ctx, 'SKILL', sx + size / 2, sy + size + 10, compact ? 10 : 11, '#ffe86b', { stroke: PAL.ink, strokeWidth: 3 });
+  bigText(ctx, tr('hud.skill'), sx + size / 2, sy + size + 10, compact ? 10 : 11, '#ffe86b', { stroke: PAL.ink, strokeWidth: 3 });
 
   // glitch mode indicator
   if (def.skill.id === 'glitchBoost') {
     const mode = GLITCH_MODES[p.glitchMode];
     panel(ctx, sx + size + 10, sy + 8, compact ? 92 : 108, 46, { fill: 'rgba(20,10,40,0.8)', r: 12 });
-    bigText(ctx, 'NEXT', sx + size + 20, sy + 22, 10, '#c58bff', { align: 'left', stroke: null, strokeWidth: 0 });
+    bigText(ctx, tr('hud.next'), sx + size + 20, sy + 22, 10, '#c58bff', { align: 'left', stroke: null, strokeWidth: 0 });
     bigText(ctx, mode, sx + size + 20, sy + 40, compact ? 14 : 16, GLITCH_INFO[mode].colour, {
       align: 'left', stroke: PAL.ink, strokeWidth: 3,
     });
@@ -178,7 +179,7 @@ export function drawBottomHUD(ctx, game, w, h, t, touchMode) {
     const tier = game.score.tierIndex;
     const colour = tier > 0 ? COMBO_TIERS[tier - 1].colour : '#ffffff';
     ctx.save();
-    bigText(ctx, `${Math.floor(game.score.combo)}× COMBO`, cx, cy - 18, compact ? 18 : 22, colour, {
+    bigText(ctx, tr('hud.combo', { n: Math.floor(game.score.combo) }), cx, cy - 18, compact ? 18 : 22, colour, {
       stroke: PAL.ink, strokeWidth: 5,
     });
     rr(ctx, cx - 90, cy, 180, 7, 4);
@@ -196,7 +197,7 @@ export function drawBottomHUD(ctx, game, w, h, t, touchMode) {
   if (!touchMode && game.state === 'fly' && game.score.metres < 24) {
     ctx.save();
     ctx.globalAlpha = 0.8;
-    bigText(ctx, 'SPACE = BOOST   ·   SHIFT = SKILL   ·   A / D = STEER   ·   ESC = PAUSE', w / 2, h - pad - 4, 13, '#dff6ff', {
+    bigText(ctx, tr('hud.hint'), w / 2, h - pad - 4, 13, '#dff6ff', {
       stroke: PAL.ink, strokeWidth: 3,
     });
     ctx.restore();
@@ -340,7 +341,7 @@ export function drawMinimap(ctx, game, w, h, t) {
   ctx.fill();
   ctx.restore();
   ctx.restore();
-  bigText(ctx, data.region.short, x + mw - 12, y + mh - 9, compact ? 9 : 10, 'rgba(255,255,255,0.7)', {
+  bigText(ctx, regionLabel(data.region, true), x + mw - 12, y + mh - 9, compact ? 9 : 10, 'rgba(255,255,255,0.7)', {
     align: 'right', stroke: null, strokeWidth: 0,
   });
   bigText(ctx, `${Math.floor(metres)} m`, x + 12, y + mh - 9, compact ? 9 : 10, 'rgba(255,255,255,0.7)', {
@@ -377,7 +378,7 @@ export function drawLaunchMeter(ctx, game, w, h, t) {
   const x = pos.x - meterW / 2;
   const y = pos.y;
   panel(ctx, x - 10, y - 26, meterW + 20, 74, { fill: 'rgba(20,10,40,0.86)', r: 14, accent: '#ffd93b' });
-  bigText(ctx, 'HOLD TO CHARGE — RELEASE IN THE GOLD ZONE', x + meterW / 2, y - 10, 12, '#ffe86b', {
+  bigText(ctx, tr('hud.launch'), x + meterW / 2, y - 10, 12, '#ffe86b', {
     stroke: PAL.ink, strokeWidth: 3,
   });
   rr(ctx, x, y + 6, meterW, 18, 9);
@@ -397,7 +398,7 @@ export function drawLaunchMeter(ctx, game, w, h, t) {
   rr(ctx, x, y + 6, Math.max(6, fill), 18, 9);
   ctx.fillStyle = linear(ctx, x, 0, x + meterW, 0, [[0, '#7fe33f'], [0.6, '#ffd93b'], [1, '#ff4d6d']]);
   ctx.fill();
-  bigText(ctx, `POWER ${Math.round(game.launchPower * 100)}%`, x + meterW / 2, y + 44, 14, '#ffffff', {
+  bigText(ctx, tr('hud.power', { n: Math.round(game.launchPower * 100) }), x + meterW / 2, y + 44, 14, '#ffffff', {
     stroke: PAL.ink, strokeWidth: 3,
   });
 }

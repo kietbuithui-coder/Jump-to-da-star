@@ -174,8 +174,8 @@ const DICT = {
   'toast.lang': { en: 'LANGUAGE: {lang}', vi: 'NGÔN NGỮ: {lang}' },
 
   /* -------------------------------------------------- in-game tutorial tips */
-  'hint.boost': { en: 'SPACE / BOOST — 3 charges, spend them well', vi: 'SPACE / BOOST — 3 lần, dùng cho khéo' },
-  'hint.skill': { en: 'SHIFT / SKILL — {skill}', vi: 'SHIFT / KỸ NĂNG — {skill}' },
+  'hint.boost': { en: 'TAP SCREEN / SPACE — boost, use charges wisely', vi: 'CHẠM MÀN HÌNH / SPACE — bay lên, dùng lượt cho khéo' },
+  'hint.skill': { en: 'SKILL BUTTON / SHIFT — {skill}', vi: 'NÚT KỸ NĂNG / SHIFT — {skill}' },
   'hint.energy': { en: 'ENERGY = SKILL FUEL. Grab the orbs.', vi: 'NĂNG LƯỢNG = NHIÊN LIỆU KỸ NĂNG. Nhặt orb đi.' },
   'hint.spring': { en: 'PADS BOUNCE ALONG THEIR NORMAL — aim your landing!', vi: 'PAD NẢY THEO HƯỚNG MẶT PAD — nhắm chỗ đáp!' },
   'hint.sky': { en: 'LOOK UP: thermals lift you to premium loot', vi: 'NHÌN LÊN: cột khí nóng đưa bạn tới loot xịn' },

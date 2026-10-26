@@ -27,6 +27,7 @@ const canvas = $('#game');
 const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
 const save = new SaveStore(safeStorage());
+const mobileTouch = !!(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
 // Language lives outside the save too, so it applies before the first paint.
 setLang(save.data.settings.lang || detectLang(), { persist: false });
 save.data.settings.lang = getLang();
@@ -74,9 +75,12 @@ function qualitySettings() {
 function resize() {
   cssW = window.innerWidth;
   cssH = window.innerHeight;
-  dpr = Math.min(window.devicePixelRatio || 1, qualitySettings().dprCap);
-  canvas.width = Math.max(1, Math.floor(cssW * dpr));
-  canvas.height = Math.max(1, Math.floor(cssH * dpr));
+  const phoneCap = mobileTouch ? (save.data.settings.quality === 'high' ? 1.5 : 1.15) : Infinity;
+  dpr = Math.min(window.devicePixelRatio || 1, qualitySettings().dprCap, phoneCap);
+  const pixelW = Math.max(1, Math.floor(cssW * dpr));
+  const pixelH = Math.max(1, Math.floor(cssH * dpr));
+  if (canvas.width !== pixelW) canvas.width = pixelW;
+  if (canvas.height !== pixelH) canvas.height = pixelH;
   canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
   game.resize(cssW, cssH, dpr);
@@ -114,7 +118,7 @@ function updateTouchVisibility() {
   const touchOn = mode === 'on' || (mode === 'auto' && coarse);
   const playing = uiState.screen === null && (game.state === 'fly' || game.state === 'launch');
   $('#touchControls').classList.toggle('is-on', !!touchOn && playing);
-  $('#touchControls').style.setProperty('--touch-scale', String(save.data.settings.touchScale || 1));
+  $('#touchControls').style.setProperty('--touch-scale', String(save.data.settings.touchScale ?? 0.5));
   if (uiState.screen === null && game.isRunning()) $('#pauseBtn').classList.add('is-on');
   else $('#pauseBtn').classList.remove('is-on');
 }
@@ -979,6 +983,35 @@ function bindInput() {
   // where it also tries to lock landscape (best effort, some browsers refuse).
   $('#fsBtn').addEventListener('click', () => toggleFullscreen());
 
+  // Touch/click anywhere on the active game canvas: tap to boost, hold/release
+  // during launch to charge. UI buttons stay independent, so two thumbs work.
+  const canvasPointers = new Set();
+  canvas.addEventListener('pointerdown', (e) => {
+    if (uiState.screen !== null || (game.state !== 'fly' && game.state !== 'launch')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    audio.unlock();
+    canvasPointers.add(e.pointerId);
+    if (canvasPointers.size === 1) input.setVirtual('boost', true);
+    try { canvas.setPointerCapture?.(e.pointerId); } catch (_) {}
+  });
+  const releaseCanvasPointer = (e) => {
+    if (!canvasPointers.delete(e.pointerId)) return;
+    e.preventDefault();
+    if (canvasPointers.size === 0) {
+      input.setVirtual('boost', false);
+      // Very quick taps can complete between two physics ticks.
+      if (game.state === 'launch' && !game.launchHeld) game.fireLaunch();
+    }
+  };
+  canvas.addEventListener('pointerup', releaseCanvasPointer);
+  canvas.addEventListener('pointercancel', releaseCanvasPointer);
+  canvas.addEventListener('lostpointercapture', releaseCanvasPointer);
+  window.addEventListener('blur', () => {
+    canvasPointers.clear();
+    input.setVirtual('boost', false);
+  });
+
   // Right mouse button = character skill (works held, like Shift).
   window.addEventListener('mousedown', (e) => {
     if (e.button !== 2 || uiState.screen) return;
@@ -1097,7 +1130,10 @@ function bindInput() {
 
 // ---------------------------------------------------------------------- loop
 const loop = new Loop({
-  step: 1 / 120,
+  // Keep swept collisions accurate, but avoid 120 JS updates per second on
+  // entry-level Android devices. Desktop retains the original 120 Hz step.
+  step: mobileTouch ? 1 / 90 : 1 / 120,
+  maxFrameTime: mobileTouch ? 0.12 : 0.25,
   update: (dt, now) => {
     if (uiState.screen === null || game.state === 'dead') {
       if (game.state !== 'paused') game.update(dt, now * 1, input);
@@ -1122,9 +1158,10 @@ const loop = new Loop({
   },
 });
 loop.onSecond = (fps) => {
-  if (fps < 45 && save.data.settings.quality === 'high') {
-    // graceful auto-degrade so weak devices stay playable
-    save.data.settings.quality = 'balanced';
+  if (mobileTouch && fps < 42 && save.data.settings.quality !== 'low'
+    || fps < 45 && save.data.settings.quality === 'high') {
+    // Auto-degrade on slow phones (balanced → low as needed).
+    save.data.settings.quality = mobileTouch ? 'low' : 'balanced';
     save.save();
     game.setQuality('balanced');
     resize();

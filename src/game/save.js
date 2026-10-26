@@ -73,7 +73,7 @@ export function defaultSave() {
       view: 'wide',
       lang: 'vi',
       touch: 'auto',
-      touchScale: 1,
+      touchScale: 0.5,
       showFps: false,
       reduceShake: false,
     },
@@ -171,7 +171,7 @@ export function sanitizeSave(raw) {
     s.settings.view = ['normal', 'wide', 'ultra'].includes(st.view) ? st.view : 'wide';
     s.settings.lang = ['vi', 'en'].includes(st.lang) ? st.lang : 'vi';
     s.settings.touch = ['auto', 'on', 'off'].includes(st.touch) ? st.touch : 'auto';
-    s.settings.touchScale = finite(st.touchScale, 1, 0.7, 1.5);
+    s.settings.touchScale = finite(st.touchScale, 0.5, 0.5, 1.5);
     s.settings.showFps = bool(st.showFps, false);
     s.settings.reduceShake = bool(st.reduceShake, false);
   }

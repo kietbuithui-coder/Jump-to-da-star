@@ -182,7 +182,12 @@ export class World {
     // exactly this amount — that is how the whole route is kept inside a band.
     const wave =
       Math.sin(this.nodeIndex * 0.42) * WORLD.waveAmp + Math.sin(this.nodeIndex * 0.13) * WORLD.waveAmp2;
-    const desiredY = WORLD.routeBaseY + wave + rng.range(-150, 150) + diff * 60;
+    // Climb into the new upper atmosphere gradually over ~5.5 km. The support
+    // chain still uses the same real physics and per-hop dropMax, so pads never
+    // teleport vertically or require an impossible jump.
+    const heightT = clamp01((metres - 100) / 5500);
+    const gradualRise = 3200 * heightT * heightT * (3 - 2 * heightT);
+    const desiredY = WORLD.routeBaseY - gradualRise + wave + rng.range(-150, 150) + diff * 60;
     const dropMax = WORLD.dropMax * (1 - easing * 0.35);
     const drop = clamp(desiredY - (route.y - 30), -dropMax, dropMax);
 
@@ -265,7 +270,11 @@ export class World {
     const density = this._densityAt(padX);
     // Loot also spreads out physically with distance: same clusters, further apart.
     const thinOut = 1 + clamp01((metres - 700) / 22000) * 2.4;
-    const spacing = (340 / Math.max(0.24, density)) * thinOut;
+    const heightAboveLaunch = Math.max(0, LAUNCH.startY - padY);
+    // Loot becomes progressively less common at altitude as well as distance.
+    // A continuous falloff avoids a visible "everything disappears" boundary.
+    const skyThinOut = 1 + 1.1 * (heightAboveLaunch / (heightAboveLaunch + 2800));
+    const spacing = (340 / Math.max(0.24, density)) * thinOut * skyThinOut;
     let acc = rng.range(0, spacing);
     for (let i = 1; i < samples.length; i++) {
       const s = samples[i];
@@ -344,7 +353,10 @@ export class World {
     // does — that is the whole point: spend a resource, take a risk, get paid.
     if (this.nodeIndex > 1 && rng.chance(WORLD.skyChance)) {
       const sx = padX - rng.range(480, 1000);
-      const climb = rng.range(WORLD.skyMin, WORLD.skyMax); // 620..1100 px of lift
+      const skyT = clamp01((metres - 200) / 6000);
+      const skyEase = skyT * skyT * (3 - 2 * skyT);
+      const maxClimb = WORLD.skyMax / 3 + (WORLD.skyMax * 2 / 3) * skyEase;
+      const climb = rng.range(WORLD.skyMin, maxClimb);
       const sy = padY - climb;
       const premium = rng.pick(['boostStar', 'super', 'magnet', 'coffee', 'balloon', 'parachute']);
       const def = ITEM_DEFS[premium];
@@ -356,8 +368,9 @@ export class World {
         kind: 'zone',
         x: sx,
         y: padY - height * 0.5 + 160,
-        width: 210,
+        width: 240 + 1000 * skyEase,
         height,
+        lift: ITEM_DEFS.hotair.lift + 5900 * skyEase,
         r: ITEM_DEFS.hotair.r,
         bob: 0,
         sky: true,
@@ -369,7 +382,8 @@ export class World {
           id: 'orb',
           kind: 'pickup',
           x: sx + rng.range(-46, 46),
-          y: padY - climb * ((i + 1) / 4),
+          // Breadcrumb gaps widen smoothly as the pilot rises through the plume.
+          y: padY - climb * Math.pow((i + 1) / 4, 1 + 0.7 * skyEase),
           r: ITEM_DEFS.orb.r,
           bob: rng.range(0, 6.28),
           sky: true,

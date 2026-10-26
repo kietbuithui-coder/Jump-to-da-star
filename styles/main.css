@@ -339,6 +339,17 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
 .map-track i { position: absolute; top: -6px; width: 6px; height: 24px; background: #fff; border-radius: 3px; box-shadow: 0 0 10px #fff; }
 
 /* ------------------------------------------------------------ touch + misc */
+/* Only steering and skill remain on Android; touching the unobstructed canvas boosts.
+   Keep hit targets usable at 50% while saving GPU time on weak phones. */
+#game { touch-action: none; }
+.touch { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.tbtn { position: relative; contain: layout style; -webkit-backdrop-filter: none; }
+@media (pointer: coarse) {
+  .tbtn { backdrop-filter: none; box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  .touch-left, .touch-right { gap: 15px; }
+  .tbtn::before { content: ""; position: absolute; inset: -5px; }
+}
+
 .touch { position: absolute; inset: auto 0 0 0; display: none; justify-content: space-between; padding: 10px clamp(10px, 3vw, 26px) clamp(10px, 3vw, 26px); z-index: 4; pointer-events: none; }
 .touch.is-on { display: flex; }
 .touch-left, .touch-right { display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; }

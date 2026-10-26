@@ -16,7 +16,7 @@ export const PHYS = {
   vxDragFloor: 380, // no drag below this speed (keeps the launch feeling snappy)
   maxVx: 2150,
   maxVxCombo: 3400,
-  maxVyUp: 2300,
+  maxVyUp: 3600, // taller thermal ascents without changing ordinary launch speed
   airAccel: 1500, // horizontal steering acceleration
   airAccelBack: 1900, // slightly stronger when braking/going left
   steerSpeedCap: 290, // steering can only change vx by this much above base drift
@@ -78,7 +78,7 @@ export const WORLD = {
   chunkBehindKeep: 2,
   spawnAhead: 3200, // generate this far in front of the player
   floorDrop: 1150, // hazard floor distance below the reference flight line
-  floorMinY: 520,
+  floorMinY: -7000, // keep the hazard floor attached to the expanded upper world
   floorMaxY: 3400,
   itemMinGap: 190,
   routeStep: 1250, // nominal horizontal distance between support nodes (px)
@@ -89,7 +89,7 @@ export const WORLD = {
   dropMax: 520, // biggest vertical step between two pads
   skyChance: 0.62, // chance a hop carries a high-altitude reward shelf
   skyMin: 620, // px above the pad line (needs a thermal / boost chain)
-  skyMax: 1400,
+  skyMax: 4200, // sky shelves unlock gradually to 3x their previous max height
 };
 
 export const CAMERA = {

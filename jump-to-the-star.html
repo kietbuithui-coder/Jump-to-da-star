@@ -348,6 +348,16 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
 .map-track i { position: absolute; top: -6px; width: 6px; height: 24px; background: #fff; border-radius: 3px; box-shadow: 0 0 10px #fff; }
 
 /* ------------------------------------------------------------ touch + misc */
+/* Touch canvas to boost; steer with two buttons, keep skill separate. */
+#game { touch-action: none; }
+.touch { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.tbtn { position: relative; contain: layout style; -webkit-backdrop-filter: none; }
+@media (pointer: coarse) {
+  .tbtn { backdrop-filter: none; box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  .touch-left, .touch-right { gap: 15px; }
+  .tbtn::before { content: ""; position: absolute; inset: -5px; }
+}
+
 .touch { position: absolute; inset: auto 0 0 0; display: none; justify-content: space-between; padding: 10px clamp(10px, 3vw, 26px) clamp(10px, 3vw, 26px); z-index: 4; pointer-events: none; }
 .touch.is-on { display: flex; }
 .touch-left, .touch-right { display: flex; gap: 12px; align-items: flex-end; pointer-events: auto; }
@@ -606,7 +616,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
           <button data-t="auto" data-i18n="set.touch.auto"></button><button data-t="on" data-i18n="set.touch.on"></button><button data-t="off" data-i18n="set.touch.off"></button>
         </div>
       </div>
-      <label class="slider-row"><span data-i18n="set.touchScale"></span> <input type="range" id="setTouchScale" min="70" max="150" /><output id="outTouch">100%</output></label>
+      <label class="slider-row"><span data-i18n="set.touchScale"></span> <input type="range" id="setTouchScale" min="50" max="150" step="5" /><output id="outTouch">50%</output></label>
       <label class="switch-row"><input type="checkbox" id="setShake" /> <span data-i18n="set.shake"></span></label>
       <label class="switch-row"><input type="checkbox" id="setFps" /> <span data-i18n="set.fps"></span></label>
       <button class="btn btn--danger" id="btnReset" data-i18n="set.reset"></button>
@@ -663,7 +673,6 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     </div>
     <div class="touch-right">
       <button class="tbtn tbtn--skill" data-touch="skill" aria-label="Skill">★<small data-i18n="hud.touch.skill"></small></button>
-      <button class="tbtn tbtn--boost" data-touch="boost" aria-label="Boost">➤<small data-i18n="hud.touch.boost"></small></button>
     </div>
   </div>
   <button class="fs-fab" id="fsBtn" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button>
@@ -856,7 +865,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     // no drag below this speed (keeps the launch feeling snappy)
     maxVx: 2150,
     maxVxCombo: 3400,
-    maxVyUp: 2300,
+    maxVyUp: 3600,
     airAccel: 1500,
     // horizontal steering acceleration
     airAccelBack: 1900,
@@ -923,7 +932,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     // generate this far in front of the player
     floorDrop: 1150,
     // hazard floor distance below the reference flight line
-    floorMinY: 520,
+    floorMinY: -7000,
     floorMaxY: 3400,
     itemMinGap: 190,
     routeStep: 1250,
@@ -940,7 +949,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     // chance a hop carries a high-altitude reward shelf
     skyMin: 620,
     // px above the pad line (needs a thermal / boost chain)
-    skyMax: 1400
+    skyMax: 4200
   };
   var CAMERA = {
     lookAhead: 0.42,
@@ -1094,7 +1103,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         view: "wide",
         lang: "vi",
         touch: "auto",
-        touchScale: 1,
+        touchScale: 0.5,
         showFps: false,
         reduceShake: false
       },
@@ -1176,7 +1185,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       s.settings.view = ["normal", "wide", "ultra"].includes(st.view) ? st.view : "wide";
       s.settings.lang = ["vi", "en"].includes(st.lang) ? st.lang : "vi";
       s.settings.touch = ["auto", "on", "off"].includes(st.touch) ? st.touch : "auto";
-      s.settings.touchScale = finite(st.touchScale, 1, 0.7, 1.5);
+      s.settings.touchScale = finite(st.touchScale, 0.5, 0.5, 1.5);
       s.settings.showFps = bool(st.showFps, false);
       s.settings.reduceShake = bool(st.reduceShake, false);
     }
@@ -1442,8 +1451,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     "toast.newtab": { en: "Opening a new tab… if nothing happens, allow pop-ups.", vi: "Đang mở tab mới… nếu không thấy gì, hãy cho phép pop-up." },
     "toast.lang": { en: "LANGUAGE: {lang}", vi: "NGÔN NGỮ: {lang}" },
     /* -------------------------------------------------- in-game tutorial tips */
-    "hint.boost": { en: "SPACE / BOOST — 3 charges, spend them well", vi: "SPACE / BOOST — 3 lần, dùng cho khéo" },
-    "hint.skill": { en: "SHIFT / SKILL — {skill}", vi: "SHIFT / KỸ NĂNG — {skill}" },
+    "hint.boost": { en: "TAP SCREEN / SPACE — boost, use charges wisely", vi: "CHẠM MÀN HÌNH / SPACE — bay lên, dùng lượt cho khéo" },
+    "hint.skill": { en: "SKILL BUTTON / SHIFT — {skill}", vi: "NÚT KỸ NĂNG / SHIFT — {skill}" },
     "hint.energy": { en: "ENERGY = SKILL FUEL. Grab the orbs.", vi: "NĂNG LƯỢNG = NHIÊN LIỆU KỸ NĂNG. Nhặt orb đi." },
     "hint.spring": { en: "PADS BOUNCE ALONG THEIR NORMAL — aim your landing!", vi: "PAD NẢY THEO HƯỚNG MẶT PAD — nhắm chỗ đáp!" },
     "hint.sky": { en: "LOOK UP: thermals lift you to premium loot", vi: "NHÌN LÊN: cột khí nóng đưa bạn tới loot xịn" },
@@ -2133,7 +2142,9 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         (WORLD.routeStep + WORLD.routeStepVariance * (rng.next() * 2 - 1) + diff * 260) * (1 - easing * 0.22)
       );
       const wave = Math.sin(this.nodeIndex * 0.42) * WORLD.waveAmp + Math.sin(this.nodeIndex * 0.13) * WORLD.waveAmp2;
-      const desiredY = WORLD.routeBaseY + wave + rng.range(-150, 150) + diff * 60;
+      const heightT = clamp01((metres - 100) / 5500);
+      const gradualRise = 3200 * heightT * heightT * (3 - 2 * heightT);
+      const desiredY = WORLD.routeBaseY - gradualRise + wave + rng.range(-150, 150) + diff * 60;
       const dropMax = WORLD.dropMax * (1 - easing * 0.35);
       const drop = clamp(desiredY - (route.y - 30), -dropMax, dropMax);
       const sim = { x: route.x, y: route.y, vx: route.vx, vy: route.vy, t: 0 };
@@ -2200,7 +2211,9 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       this._addFloorPoint(padX, padY + 560 + rng.range(-80, 110));
       const density = this._densityAt(padX);
       const thinOut = 1 + clamp01((metres - 700) / 22e3) * 2.4;
-      const spacing = 340 / Math.max(0.24, density) * thinOut;
+      const heightAboveLaunch = Math.max(0, LAUNCH.startY - padY);
+      const skyThinOut = 1 + 1.1 * (heightAboveLaunch / (heightAboveLaunch + 2800));
+      const spacing = 340 / Math.max(0.24, density) * thinOut * skyThinOut;
       let acc = rng.range(0, spacing);
       for (let i = 1; i < samples.length; i++) {
         const s = samples[i];
@@ -2270,7 +2283,10 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
       }
       if (this.nodeIndex > 1 && rng.chance(WORLD.skyChance)) {
         const sx = padX - rng.range(480, 1e3);
-        const climb = rng.range(WORLD.skyMin, WORLD.skyMax);
+        const skyT = clamp01((metres - 200) / 6e3);
+        const skyEase = skyT * skyT * (3 - 2 * skyT);
+        const maxClimb = WORLD.skyMax / 3 + WORLD.skyMax * 2 / 3 * skyEase;
+        const climb = rng.range(WORLD.skyMin, maxClimb);
         const sy = padY - climb;
         const premium = rng.pick(["boostStar", "super", "magnet", "coffee", "balloon", "parachute"]);
         const def2 = ITEM_DEFS[premium];
@@ -2280,8 +2296,9 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
           kind: "zone",
           x: sx,
           y: padY - height * 0.5 + 160,
-          width: 210,
+          width: 240 + 1e3 * skyEase,
           height,
+          lift: ITEM_DEFS.hotair.lift + 5900 * skyEase,
           r: ITEM_DEFS.hotair.r,
           bob: 0,
           sky: true
@@ -2291,7 +2308,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
             id: "orb",
             kind: "pickup",
             x: sx + rng.range(-46, 46),
-            y: padY - climb * ((i + 1) / 4),
+            y: padY - climb * Math.pow((i + 1) / 4, 1 + 0.7 * skyEase),
             r: ITEM_DEFS.orb.r,
             bob: rng.range(0, 6.28),
             sky: true
@@ -3575,7 +3592,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         const halfW = (z.width ?? def.width ?? 160) / 2;
         const halfH = (z.height ?? def.height ?? 600) / 2;
         if (Math.abs(p.x - z.x) < halfW + 30 && Math.abs(p.y - z.y) < halfH + 30) {
-          p.vy -= (def.lift || 1800) * dt;
+          p.vy -= (z.lift ?? def.lift ?? 1800) * dt;
           p.vx += (def.vxPush || 0) * dt;
           p.vy = Math.max(p.vy, -PHYS.maxVyUp);
           if (Math.random() < 0.5) {
@@ -7808,6 +7825,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   var canvas = $("#game");
   var ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
   var save = new SaveStore(safeStorage());
+  var mobileTouch = !!(window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0);
   setLang(save.data.settings.lang || detectLang(), { persist: false });
   save.data.settings.lang = getLang();
   var audio = new AudioEngine(save.data.settings);
@@ -7847,9 +7865,12 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   function resize() {
     cssW = window.innerWidth;
     cssH = window.innerHeight;
-    dpr = Math.min(window.devicePixelRatio || 1, qualitySettings().dprCap);
-    canvas.width = Math.max(1, Math.floor(cssW * dpr));
-    canvas.height = Math.max(1, Math.floor(cssH * dpr));
+    const phoneCap = mobileTouch ? (save.data.settings.quality === "high" ? 1.5 : 1.15) : Infinity;
+    dpr = Math.min(window.devicePixelRatio || 1, qualitySettings().dprCap, phoneCap);
+    const pixelW = Math.max(1, Math.floor(cssW * dpr));
+    const pixelH = Math.max(1, Math.floor(cssH * dpr));
+    if (canvas.width !== pixelW) canvas.width = pixelW;
+    if (canvas.height !== pixelH) canvas.height = pixelH;
     canvas.style.width = cssW + "px";
     canvas.style.height = cssH + "px";
     game.resize(cssW, cssH, dpr);
@@ -7885,7 +7906,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     const touchOn = mode === "on" || mode === "auto" && coarse;
     const playing = uiState.screen === null && (game.state === "fly" || game.state === "launch");
     $("#touchControls").classList.toggle("is-on", !!touchOn && playing);
-    $("#touchControls").style.setProperty("--touch-scale", String(save.data.settings.touchScale || 1));
+    $("#touchControls").style.setProperty("--touch-scale", String(save.data.settings.touchScale ?? 0.5));
     if (uiState.screen === null && game.isRunning()) $("#pauseBtn").classList.add("is-on");
     else $("#pauseBtn").classList.remove("is-on");
   }
@@ -8679,6 +8700,31 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     });
     $("#pauseBtn").addEventListener("click", () => pauseGame());
     $("#fsBtn").addEventListener("click", () => toggleFullscreen());
+    const canvasPointers = new Set();
+    canvas.addEventListener("pointerdown", (e) => {
+      if (uiState.screen !== null || game.state !== "fly" && game.state !== "launch") return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      e.preventDefault();
+      audio.unlock();
+      canvasPointers.add(e.pointerId);
+      if (canvasPointers.size === 1) input.setVirtual("boost", true);
+      try { canvas.setPointerCapture?.(e.pointerId); } catch (_) {}
+    });
+    const releaseCanvasPointer = (e) => {
+      if (!canvasPointers.delete(e.pointerId)) return;
+      e.preventDefault();
+      if (canvasPointers.size === 0) {
+        input.setVirtual("boost", false);
+        if (game.state === "launch" && !game.launchHeld) game.fireLaunch();
+      }
+    };
+    canvas.addEventListener("pointerup", releaseCanvasPointer);
+    canvas.addEventListener("pointercancel", releaseCanvasPointer);
+    canvas.addEventListener("lostpointercapture", releaseCanvasPointer);
+    window.addEventListener("blur", () => {
+      canvasPointers.clear();
+      input.setVirtual("boost", false);
+    });
     window.addEventListener("mousedown", (e) => {
       if (e.button !== 2 || uiState.screen) return;
       e.preventDefault();
@@ -8792,7 +8838,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     window.addEventListener("orientationchange", () => setTimeout(resize, 120));
   }
   var loop = new Loop({
-    step: 1 / 120,
+    step: mobileTouch ? 1 / 90 : 1 / 120,
+    maxFrameTime: mobileTouch ? 0.12 : 0.25,
     update: (dt, now) => {
       if (uiState.screen === null || game.state === "dead") {
         if (game.state !== "paused") game.update(dt, now * 1, input);
@@ -8816,8 +8863,8 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
     }
   });
   loop.onSecond = (fps) => {
-    if (fps < 45 && save.data.settings.quality === "high") {
-      save.data.settings.quality = "balanced";
+    if (mobileTouch && fps < 42 && save.data.settings.quality !== "low" || fps < 45 && save.data.settings.quality === "high") {
+      save.data.settings.quality = mobileTouch ? "low" : "balanced";
       save.save();
       game.setQuality("balanced");
       resize();

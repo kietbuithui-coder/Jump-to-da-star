@@ -580,7 +580,7 @@ export class Game {
       const halfW = (z.width ?? def.width ?? 160) / 2;
       const halfH = (z.height ?? def.height ?? 600) / 2;
       if (Math.abs(p.x - z.x) < halfW + 30 && Math.abs(p.y - z.y) < halfH + 30) {
-        p.vy -= (def.lift || 1800) * dt;
+        p.vy -= (z.lift ?? def.lift ?? 1800) * dt;
         p.vx += (def.vxPush || 0) * dt;
         p.vy = Math.max(p.vy, -PHYS.maxVyUp);
         if (Math.random() < 0.5) {

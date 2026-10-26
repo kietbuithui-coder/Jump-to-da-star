@@ -140,7 +140,7 @@
           <button data-t="auto" data-i18n="set.touch.auto"></button><button data-t="on" data-i18n="set.touch.on"></button><button data-t="off" data-i18n="set.touch.off"></button>
         </div>
       </div>
-      <label class="slider-row"><span data-i18n="set.touchScale"></span> <input type="range" id="setTouchScale" min="70" max="150" /><output id="outTouch">100%</output></label>
+      <label class="slider-row"><span data-i18n="set.touchScale"></span> <input type="range" id="setTouchScale" min="50" max="150" step="5" /><output id="outTouch">50%</output></label>
       <label class="switch-row"><input type="checkbox" id="setShake" /> <span data-i18n="set.shake"></span></label>
       <label class="switch-row"><input type="checkbox" id="setFps" /> <span data-i18n="set.fps"></span></label>
       <button class="btn btn--danger" id="btnReset" data-i18n="set.reset"></button>
@@ -197,7 +197,6 @@
     </div>
     <div class="touch-right">
       <button class="tbtn tbtn--skill" data-touch="skill" aria-label="Skill">★<small data-i18n="hud.touch.skill"></small></button>
-      <button class="tbtn tbtn--boost" data-touch="boost" aria-label="Boost">➤<small data-i18n="hud.touch.boost"></small></button>
     </div>
   </div>
   <button class="fs-fab" id="fsBtn" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button>

@@ -1,0 +1,26 @@
+{
+  "name": "jump-to-the-star",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JUMP TO THE STAR (JTTS) — a physics arcade endless flight game. Professor Shapi's Lab Experiment #001.",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "dev": "node tools/serve.mjs",
+    "test": "node test/run.mjs && node test/browser.mjs && node test/standalone.mjs",
+    "test:core": "node test/run.mjs",
+    "test:browser": "node test/browser.mjs",
+    "art": "node tools/render.mjs",
+    "test:sweep": "node test/sweep.mjs 20",
+    "build:web": "node tools/build-web.mjs",
+    "test:web": "node test/standalone.mjs"
+  },
+  "keywords": [
+    "game",
+    "canvas",
+    "arcade",
+    "physics",
+    "roguelite"
+  ],
+  "license": "MIT"
+}

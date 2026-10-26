@@ -232,14 +232,24 @@ node test/sweep.mjs 20   # 50/50 routes to 20 km
 | performance (1) | simulation + streaming costs **0.86 ms of CPU per wall-clock second** (7 µs/step) |
 | wiring (7) | every DOM id the code looks up exists; every `data-action` is handled; every relative import resolves (57); game logic never touches `document`/`localStorage`; tuning constants all live in config; no emoji/placeholder art |
 
-### Fairness runs (inside `test/run.mjs`)
+### Fairness runs (inside `test/run.mjs` + `test/sweep.mjs`)
 
 * **25 routes** — 5 pilots × 5 seeds — flown to **10 km** with steering and 3 boosts only
   (no skills, no upgrades). 25/25 survived.
-* Ad-hoc deeper sweep (not part of the suite): **50 routes** — 5 pilots × 10 seeds — to **20 km**:
+* **`node test/sweep.mjs 20`** (separate CLI): **50 routes** — 5 pilots × 10 seeds — to **20 km**:
   50/50 survived.
-* A pilot who presses *nothing at all* now dies in the first kilometre — by design, since the nets
-  are gone. Falling is a mistake, not a rescue.
+* A pilot who presses *nothing at all* dies in the first kilometre or two — by design, since the
+  nets are gone. Falling is a mistake, not a rescue.
+
+**What those numbers do and do not prove.** `test/autopilot.mjs` runs the *real* `World`,
+`flight`, `bounce` and `physics` modules but its own loop: no items, no hazards, no energy, no
+skills, and it can aim perfectly. It is a **map-fairness** proof ("a correct line always exists"),
+not a difficulty claim. To see the other side, I drove the **real `Game` class** with a scripted
+controller that can only press the public inputs (steer + boost, no skills): 6 of 8 seeds reached
+**1.0–3.5 km**, one reached **7.1 km**, one hit the 10 km target. So the sweep is optimistic about
+human-perfect control — in the actual game you are expected to use skills, boost stars and the sky
+shelves, and you will die if you aim badly. That gap is a *controller* limitation I can measure;
+whether it is the right difficulty for a human is exactly what I could not test.
 
 ### `test/browser.mjs` — 24 checks, 24 passing
 

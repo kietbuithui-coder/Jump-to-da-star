@@ -308,45 +308,62 @@ check('sky shelves are out of reach of a normal arc — and reachable with the l
   return `${checked} shelves, all >600px above the line and inside thermal reach`;
 });
 
-check('high sky columns have 4 EXTRA vertical tiers above the old sky prize', () => {
+check('each of the four high-altitude tiers refills a boost and energy on ascent', () => {
   let verified = 0;
+  const energyPerTier = ['orb', 'battery', 'super', 'battery'];
   for (const seed of [1, 5, 11, 23]) {
-    const w = new World(seed);
+    const { game } = makeGame(seed);
+    const w = game.world;
     w.ensure(w.startX + 130000);
-    const zones = [];
-    const items = [];
-    for (const c of w.chunks.values()) {
-      zones.push(...c.zones.filter(z => z.id === 'hotair' && z.sky));
-      items.push(...c.items.filter(it => it.upperTier));
-    }
-    for (const zone of zones.filter(z => z.upperTierCount === 4)) {
-      const tierItems = items.filter(it => Math.abs(Math.abs(it.x - zone.x) - 30) < 0.01
-        && Math.abs(it.y - zone.y) <= zone.height / 2 + 1);
-      // Count by the unique vertical positions of this specific plume.
-      const matched = tierItems.filter(it => it.anchorY != null
-        && Math.abs(it.anchorY - (zone.y + zone.height / 2 - 160)) < 0.01);
-      assert(matched.length === 8, 'each extended plume needs 8 items, 2 per tier');
+    const zones = [...w.chunks.values()].flatMap(c => c.zones)
+      .filter(z => z.id === 'hotair' && z.sky && z.upperTierCount === 4);
+    const items = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.upperTier);
+
+    for (const zone of zones) {
+      const anchorY = zone.y + zone.height / 2 - 160;
+      const matched = items.filter(it => it.anchorY != null
+        && Math.abs(it.anchorY - anchorY) < 0.01 && Math.abs(it.x - zone.x) <= 46);
+      assert(matched.length === 8, 'every high column must have 8 usable items');
       for (let level = 1; level <= 4; level++) {
         const shelf = matched.filter(it => it.upperTier === level);
-        assert(shelf.length === 2, 'missing vertical tier ' + level);
-        assertClose(shelf[0].y, shelf[1].y, 0.001, 'one row per tier');
-        assert(Math.abs(shelf[0].x - zone.x) <= 30 && Math.abs(shelf[1].x - zone.x) <= 30,
-          'items must go vertically, not spread sideways');
-        assert(shelf.every(it => it.y < zone.y + zone.height / 2 - 160 - 620),
-          'upper tier must remain above the old low sky route');
+        assert(shelf.length === 2, 'missing upward tier ' + level);
+        const boost = shelf.find(it => it.id === 'boostStar');
+        const energy = shelf.find(it => it.id === energyPerTier[level - 1]);
+        assert(boost && energy, 'tier ' + level + ' must contain boost and energy');
+        assert(boost.x === zone.x, 'flight booster must sit on the ascent centreline');
+        assert(ITEM_DEFS[boost.id].boost >= 1, 'booster must actually replenish boost charges');
+        assert(ITEM_DEFS[energy.id].energy > 0, 'partner must actually replenish energy');
+        assert(Math.hypot(energy.x - boost.x, energy.y - boost.y)
+          < PHYS.collideRadius + ITEM_DEFS[energy.id].r * 0.9,
+          'straight ascent must collect the second item');
+        assert(Math.abs(energy.x - zone.x) <= 46, 'upper loot may not stretch horizontally');
+        assert(boost.y < anchorY - 620, 'stage must be above ordinary bounce height');
+        assert(boost.y >= zone.y - zone.height / 2 + 125, 'boost stage must remain in thermal reach');
       }
       for (let level = 2; level <= 4; level++) {
-        const prev = matched.find(it => it.upperTier === level - 1);
-        const next = matched.find(it => it.upperTier === level);
-        assert(prev.y - next.y >= 195, 'vertical tiers must have a distinct height gap');
+        const prev = matched.find(it => it.upperTier === level - 1 && it.id === 'boostStar');
+        const next = matched.find(it => it.upperTier === level && it.id === 'boostStar');
+        assert(prev.y - next.y >= 195, 'stage heights must form separate vertical steps');
       }
-      const top = Math.min(...matched.map(it => it.y));
-      assert(top >= zone.y - zone.height / 2 + 125, 'thermal lift must cover the top tier');
+      // Collect along the centre of a real column using the actual Game pickup
+      // method. Do this once per world to avoid exhausting the entire inventory.
+      if (zone === zones[0]) {
+        for (let level = 1; level <= 4; level++) {
+          const booster = matched.find(it => it.upperTier === level && it.id === 'boostStar');
+          game.player.x = zone.x;
+          game.player.y = booster.y;
+          game.player.boosts = 0;
+          game.player.energy = 0;
+          game.collectNearby(DT);
+          assert(game.player.boosts >= 1, 'tier ' + level + ' must restore at least 1 boost');
+          assert(game.player.energy > 0, 'tier ' + level + ' must restore energy');
+        }
+      }
       verified++;
     }
   }
-  assert(verified >= 12, 'expected extended upper sky columns across generated worlds');
-  return verified + ' high columns with 4 upward tiers / 8 items each';
+  assert(verified >= 12, 'expected many extended sky columns');
+  return verified + ' sky columns: 4 vertically reachable fuel stages each';
 });
 
 check('loot density falls with distance (measured over 3 seeds)', () => {

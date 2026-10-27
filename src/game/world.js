@@ -418,21 +418,25 @@ export class World {
         high: true,
         anchorY: padY,
       });
-      // Four new vertical shelves ABOVE the old top prize (2 close-together
-      // pickups per tier). Both pickups lie on the thermal's centreline,
-      // within 30px horizontally, for a readable straight-up ascent.
-      const upperPrizes = ['coin', 'battery', 'super', 'boostStar'];
+      // Four self-sustaining vertical stages, not just four reward rows.
+      // Each stage GUARANTEES one central boost refill for the next ascent
+      // and one nearby energy refill; coins never replace flight resources.
+      // Deterministic IDs/positions avoid consuming the pad-placement RNG.
+      const tierEnergy = ['orb', 'battery', 'super', 'battery'];
       for (let level = 0; level < upperTierCount; level++) {
         const tierY = sy - (level + 1) * tierGap;
-        const bonusId = upperPrizes[(this.nodeIndex + this.seed + level) % upperPrizes.length];
-        for (const [itemId, side] of [['orb', -1], [bonusId, 1]]) {
+        const fuel = [
+          { id: 'boostStar', x: sx, y: tierY },
+          { id: tierEnergy[level], x: sx + (level % 2 === 0 ? 46 : -46), y: tierY + 22 },
+        ];
+        for (const item of fuel) {
           registerShelf({
-            id: itemId,
+            id: item.id,
             kind: 'pickup',
-            x: sx + side * (level % 2 === 0 ? 30 : -30),
-            y: tierY,
-            r: ITEM_DEFS[itemId].r,
-            bob: (level * 1.7 + (side + 1) * 1.4) % 6.28,
+            x: item.x,
+            y: item.y,
+            r: ITEM_DEFS[item.id].r,
+            bob: (level * 1.7 + (item.id === 'boostStar' ? 0 : 2.8)) % 6.28,
             sky: true,
             high: true,
             upperTier: level + 1,

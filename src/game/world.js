@@ -371,7 +371,13 @@ export class World {
       const sy = padY - climb;
       const premium = rng.pick(['boostStar', 'super', 'magnet', 'coffee', 'balloon', 'parachute']);
       const def = ITEM_DEFS[premium];
-      const height = climb + 320;
+      // At true high altitude, the reward trail now continues UPWARD for four
+      // distinct extra tiers, not sideways across another flight lane.
+      // No extra calls to the world RNG: pad placements and existing sky
+      // column frequency remain identical across seeds and saved runs.
+      const upperTierCount = LAUNCH.startY - sy >= 900 ? 4 : 0;
+      const tierGap = 195 + 55 * skyEase;
+      const height = climb + 320 + upperTierCount * tierGap;
 
       // thermal column from the flight line up past the shelf
       registerShelf({
@@ -381,6 +387,7 @@ export class World {
         y: padY - height * 0.5 + 160,
         width: 240 + 1000 * skyEase,
         height,
+        upperTierCount,
         lift: ITEM_DEFS.hotair.lift + 5900 * skyEase,
         r: ITEM_DEFS.hotair.r,
         bob: 0,
@@ -411,6 +418,28 @@ export class World {
         high: true,
         anchorY: padY,
       });
+      // Four new vertical shelves ABOVE the old top prize (2 close-together
+      // pickups per tier). Both pickups lie on the thermal's centreline,
+      // within 30px horizontally, for a readable straight-up ascent.
+      const upperPrizes = ['coin', 'battery', 'super', 'boostStar'];
+      for (let level = 0; level < upperTierCount; level++) {
+        const tierY = sy - (level + 1) * tierGap;
+        const bonusId = upperPrizes[(this.nodeIndex + this.seed + level) % upperPrizes.length];
+        for (const [itemId, side] of [['orb', -1], [bonusId, 1]]) {
+          registerShelf({
+            id: itemId,
+            kind: 'pickup',
+            x: sx + side * (level % 2 === 0 ? 30 : -30),
+            y: tierY,
+            r: ITEM_DEFS[itemId].r,
+            bob: (level * 1.7 + (side + 1) * 1.4) % 6.28,
+            sky: true,
+            high: true,
+            upperTier: level + 1,
+            anchorY: padY,
+          });
+        }
+      }
       if (rng.chance(0.4)) {
         registerShelf({
           id: 'jetGate',

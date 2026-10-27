@@ -2374,7 +2374,11 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
           const id = rng.pick(choices);
           const d = ITEM_DEFS[id];
           const isZone = d.kind === "zone";
-          this._register({
+          // Preserve RNG and all other tools: only suppress half the extra hot-air jets.
+        const registerOptional = entity => {
+          if (id !== 'hotair' || (this.nodeIndex + this.seed) % 2 === 0) this._register(entity);
+        };
+        registerOptional({
             id,
             kind: d.kind,
             x: midX,
@@ -2386,6 +2390,10 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         }
       }
       if (this.nodeIndex > 1 && rng.chance(WORLD.skyChance)) {
+      // Alternate potential shelf columns deterministically without consuming
+      // extra RNG calls. The safe pad route and all subsequent RNG remain intact.
+      const showColumn = (this.nodeIndex + this.seed) % 2 === 0;
+      const registerShelf = entity => { if (showColumn) this._register(entity); };
         const sx = padX - rng.range(480, 1e3);
         const skyT = clamp01((metres - 200) / 6e3);
         const skyEase = skyT * skyT * (3 - 2 * skyT);
@@ -2395,7 +2403,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
         const premium = rng.pick(["boostStar", "super", "magnet", "coffee", "balloon", "parachute"]);
         const def2 = ITEM_DEFS[premium];
         const height = climb + 320;
-        this._register({
+        registerShelf({
           id: "hotair",
           kind: "zone",
           x: sx,
@@ -2408,7 +2416,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
           sky: true
         });
         for (let i = 0; i < 3; i++) {
-          this._register({
+          registerShelf({
             id: "orb",
             kind: "pickup",
             x: sx + rng.range(-46, 46),
@@ -2418,7 +2426,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
             sky: true
           });
         }
-        this._register({
+        registerShelf({
           id: premium,
           kind: def2.kind,
           x: sx,
@@ -2430,7 +2438,7 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
           anchorY: padY
         });
         if (rng.chance(0.4)) {
-          this._register({
+          registerShelf({
             id: "jetGate",
             kind: "gate",
             x: sx + rng.range(160, 340),

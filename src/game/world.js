@@ -339,7 +339,11 @@ export class World {
         const id = rng.pick(choices);
         const d = ITEM_DEFS[id];
         const isZone = d.kind === 'zone';
-        this._register({
+        // Preserve RNG and all other tools: only suppress half the extra hot-air jets.
+        const registerOptional = entity => {
+          if (id !== 'hotair' || (this.nodeIndex + this.seed) % 2 === 0) this._register(entity);
+        };
+        registerOptional({
           id,
           kind: d.kind,
           x: midX,
@@ -355,6 +359,10 @@ export class World {
     // A normal bounce never gets there. A thermal column (or a boost chain)
     // does — that is the whole point: spend a resource, take a risk, get paid.
     if (this.nodeIndex > 1 && rng.chance(WORLD.skyChance)) {
+      // Alternate potential shelf columns deterministically without consuming
+      // extra RNG calls. The safe pad route and all subsequent RNG remain intact.
+      const showColumn = (this.nodeIndex + this.seed) % 2 === 0;
+      const registerShelf = entity => { if (showColumn) this._register(entity); };
       const sx = padX - rng.range(480, 1000);
       const skyT = clamp01((metres - 200) / 6000);
       const skyEase = skyT * skyT * (3 - 2 * skyT);
@@ -366,7 +374,7 @@ export class World {
       const height = climb + 320;
 
       // thermal column from the flight line up past the shelf
-      this._register({
+      registerShelf({
         id: 'hotair',
         kind: 'zone',
         x: sx,
@@ -381,7 +389,7 @@ export class World {
 
       // breadcrumb trail climbing inside the column
       for (let i = 0; i < 3; i++) {
-        this._register({
+        registerShelf({
           id: 'orb',
           kind: 'pickup',
           x: sx + rng.range(-46, 46),
@@ -392,7 +400,7 @@ export class World {
           sky: true,
         });
       }
-      this._register({
+      registerShelf({
         id: premium,
         kind: def.kind,
         x: sx,
@@ -404,7 +412,7 @@ export class World {
         anchorY: padY,
       });
       if (rng.chance(0.4)) {
-        this._register({
+        registerShelf({
           id: 'jetGate',
           kind: 'gate',
           x: sx + rng.range(160, 340),

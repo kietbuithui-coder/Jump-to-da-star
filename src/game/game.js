@@ -453,8 +453,8 @@ export class Game {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
-    // Fill empty air above the real player, not only above a thermal shelf.
-    this.world.ensureSkySupport(p);
+    // Stream scattered pickups without guaranteeing vertical ascent.
+    this.world.ensureAltitudeLoot(p);
 
     // ---- pad collisions (one-way, shared with the generator's model)
     const pads = this.world.padsNear(p.x);

@@ -72,10 +72,8 @@ export class World {
     this.lastPad = null;
     this.trace = [];
     this._lastRecycleCi = null;
-    // Open sky is a second, vertical stream; unlike route loot it follows
-    // actual climb altitude, not horizontal distance or special hot-air zones.
-    this.airTierKeys = new Map();
-    this.lastAirPrune = null;
+    this.scatterBands = new Map();
+    this._scatterMarker = null;
     this._register({
       id: 'spring',
       kind: 'pad',
@@ -92,6 +90,7 @@ export class World {
     this._addFloorPoint(this.route.x - 1400, 900);
     this._addFloorPoint(this.route.x, 880);
     this.ensure(this.route.x + WORLD.spawnAhead);
+    this.ensureAltitudeLoot({ x: this.startX, y: LAUNCH.startY });
   }
 
   // ---------------------------------------------------------------- chunks
@@ -111,6 +110,7 @@ export class World {
         floorY: 900,
         pads: [],
         items: [],
+        scatterTaken: new Set(),
         hazards: [],
         zones: [],
         decor: [],
@@ -151,63 +151,59 @@ export class World {
   }
 
   /**
-   * Place continued flight supplies in open sky as the pilot really ascends.
-   * Four future heights are seeded ahead of the player in each horizontal
-   * sector; new heights appear with further ascent (no vertical ceiling).
-   * No main RNG calls: the guaranteed reference pad route is untouched.
+   * Seed every horizontal/vertical cell with random loot. Density falls with
+   * altitude but every cell retains at least one pickup, even in deep sky.
+   * The player position only selects which cells to stream, not pickup positions.
    */
-  ensureSkySupport(player) {
+  ensureAltitudeLoot(player) {
     if (!player || !Number.isFinite(player.x) || !Number.isFinite(player.y)) return;
-    if (LAUNCH.startY - player.y < 360 || this.floorAt(player.x) - player.y < 900 || player.vy > 180) return;
-    const gap = 240;
-    const sector = Math.floor((player.x - this.startX) / 900);
-    const first = Math.floor((LAUNCH.startY - player.y) / gap) + 1;
-    for (let offset = 0; offset < 4; offset++) {
-      const tier = first + offset;
-      if (tier <= 0) continue;
-      const key = sector + ':' + tier;
-      if (this.airTierKeys.has(key)) continue;
-      this.airTierKeys.set(key, { sector, tier });
-      const y = LAUNCH.startY - tier * gap;
-      const rise = Math.max(1, player.y - y);
-      const leadSeconds = Math.min(0.65, rise / Math.max(750, -player.vy));
-      // Place the ladder on the predicted rising path, not randomly far to
-      // the side. The second pickup also intersects a centred character.
-      const x = player.x + Math.max(0, player.vx) * leadSeconds;
-      const energy = ['orb', 'battery', 'super', 'battery'][tier % 4];
-      for (const [id, dx, dy] of [
-        ['boostStar', 0, 0],
-        [energy, tier % 2 ? 32 : -32, 18],
-      ]) {
-        this._register({
-          id, kind: 'pickup', x: x + dx, y: y + dy,
-          r: ITEM_DEFS[id].r, sky: true, airSupport: true,
-          airTier: tier, bob: tier % 6,
-        });
-      }
-      // Every second tier also has an automatic upward impulse so the
-      // ladder supports climbing rather than merely awarding points.
-      if (tier % 2 === 0) {
-        this._register({
-          id: 'jetGate', kind: 'gate', x, y: y + 82,
-          r: ITEM_DEFS.jetGate.r, angle: -0.2, bob: 0,
-          sky: true, airSupport: true, airTier: tier,
-        });
+    const bandHeight = 480;
+    const ci = this.chunkIndexAt(player.x);
+    const altitude = Math.max(0, this.floorAt(player.x) - player.y);
+    const lowest = Math.max(0, Math.floor((altitude - 3600) / bandHeight));
+    const highest = Math.max(lowest, Math.floor((altitude + 3600) / bandHeight));
+    const marker = ci + ':' + lowest + ':' + highest;
+    if (this._scatterMarker === marker) return;
+    this._scatterMarker = marker;
+    for (let index = Math.max(0, ci - 1); index <= ci + 2; index++) {
+      const chunk = this.chunkAt(index);
+      for (let band = lowest; band <= highest; band++) {
+        const key = index + ':' + band;
+        if (this.scatterBands.has(key)) continue;
+        this.scatterBands.set(key, { ci: index, band });
+        const hash = (this.seed ^ Math.imul(index + 12345, 0x9e3779b1)
+          ^ Math.imul(band + 1, 0x85ebca6b)) >>> 0;
+        const random = new RNG(hash);
+        const height = (band + 0.5) * bandHeight;
+        const count = 1 + Math.floor(4 * Math.exp(-height / 1700) + random.next() * 0.8);
+        for (let slot = 0; slot < count; slot++) {
+          const x = chunk.x0 + (slot + 0.2 + random.next() * 0.6) * this.chunkWidth / count;
+          const y = this.floorAt(x) - (band + 0.16 + random.next() * 0.68) * bandHeight;
+          const roll = random.next();
+          const id = roll < 0.42 ? 'orb'
+            : roll < 0.67 ? 'coin'
+            : roll < 0.82 ? 'comboOrb'
+            : roll < 0.91 ? 'battery'
+            : roll < 0.965 ? 'super'
+            : roll < 0.988 ? 'rocket' : 'boostStar';
+          const scatterKey = key + ':' + slot;
+          if (chunk.scatterTaken.has(scatterKey)) continue;
+          this._register({
+            id, kind: ITEM_DEFS[id].kind, x, y, r: ITEM_DEFS[id].r,
+            bob: random.range(0, 6.28), sky: true, scatterLoot: true,
+            altitudeBand: band, scatterKey,
+          });
+        }
       }
     }
-    const marker = sector + ':' + Math.floor(first / 3);
-    if (marker !== this.lastAirPrune) {
-      this.lastAirPrune = marker;
-      const minTier = first - 10;
-      for (const [key, info] of this.airTierKeys) {
-        if (info.sector < sector - 4 || info.tier < minTier) this.airTierKeys.delete(key);
-      }
-      // On exceptionally long vertical ascents at one X, remove supplies
-      // thousands of pixels below the player, keeping Android memory bounded.
-      for (const chunk of this.chunks.values()) {
-        if (chunk.items.some(it => it.airSupport && it.airTier < minTier)) {
-          chunk.items = chunk.items.filter(it => !it.airSupport || it.airTier >= minTier);
-        }
+    // Retain only nearby cells in memory; track consumed pickups per chunk.
+    for (const [key, location] of this.scatterBands) {
+      if (location.ci < ci - 2 || location.ci > ci + 3
+        || location.band < lowest - 2 || location.band > highest + 2) {
+        const chunk = this.chunks.get(location.ci);
+        if (chunk) chunk.items = chunk.items.filter(it =>
+          !it.scatterLoot || it.altitudeBand !== location.band);
+        this.scatterBands.delete(key);
       }
     }
   }
@@ -252,7 +248,7 @@ export class World {
     // chain still uses the same real physics and per-hop dropMax, so pads never
     // teleport vertically or require an impossible jump.
     const heightT = clamp01((metres - 100) / 5500);
-    const gradualRise = 3200 * heightT * heightT * (3 - 2 * heightT);
+    const gradualRise = 520 * heightT * heightT * (3 - 2 * heightT);
     const desiredY = WORLD.routeBaseY - gradualRise + wave + rng.range(-150, 150) + diff * 60;
     const dropMax = WORLD.dropMax * (1 - easing * 0.35);
     const drop = clamp(desiredY - (route.y - 30), -dropMax, dropMax);
@@ -437,13 +433,8 @@ export class World {
       const sy = padY - climb;
       const premium = rng.pick(['boostStar', 'super', 'magnet', 'coffee', 'balloon', 'parachute']);
       const def = ITEM_DEFS[premium];
-      // At true high altitude, the reward trail now continues UPWARD for four
-      // distinct extra tiers, not sideways across another flight lane.
-      // No extra calls to the world RNG: pad placements and existing sky
-      // column frequency remain identical across seeds and saved runs.
-      const upperTierCount = LAUNCH.startY - sy >= 900 ? 4 : 0;
-      const tierGap = 195 + 55 * skyEase;
-      const height = climb + 320 + upperTierCount * tierGap;
+      // Rare sky shelf, without a guaranteed ladder of fuel.
+      const height = climb + 320;
 
       // thermal column from the flight line up past the shelf
       registerShelf({
@@ -453,7 +444,6 @@ export class World {
         y: padY - height * 0.5 + 160,
         width: 240 + 1000 * skyEase,
         height,
-        upperTierCount,
         lift: ITEM_DEFS.hotair.lift + 5900 * skyEase,
         r: ITEM_DEFS.hotair.r,
         bob: 0,
@@ -484,32 +474,6 @@ export class World {
         high: true,
         anchorY: padY,
       });
-      // Four self-sustaining vertical stages, not just four reward rows.
-      // Each stage GUARANTEES one central boost refill for the next ascent
-      // and one nearby energy refill; coins never replace flight resources.
-      // Deterministic IDs/positions avoid consuming the pad-placement RNG.
-      const tierEnergy = ['orb', 'battery', 'super', 'battery'];
-      for (let level = 0; level < upperTierCount; level++) {
-        const tierY = sy - (level + 1) * tierGap;
-        const fuel = [
-          { id: 'boostStar', x: sx, y: tierY },
-          { id: tierEnergy[level], x: sx + (level % 2 === 0 ? 46 : -46), y: tierY + 22 },
-        ];
-        for (const item of fuel) {
-          registerShelf({
-            id: item.id,
-            kind: 'pickup',
-            x: item.x,
-            y: item.y,
-            r: ITEM_DEFS[item.id].r,
-            bob: (level * 1.7 + (item.id === 'boostStar' ? 0 : 2.8)) % 6.28,
-            sky: true,
-            high: true,
-            upperTier: level + 1,
-            anchorY: padY,
-          });
-        }
-      }
       if (rng.chance(0.4)) {
         registerShelf({
           id: 'jetGate',
@@ -651,6 +615,7 @@ export class World {
     const chunk = this.chunks.get(ent.chunk);
     if (!chunk) return;
     ent.taken = true;
+    if (ent.scatterLoot) chunk.scatterTaken.add(ent.scatterKey);
     const idx = chunk.items.indexOf(ent);
     if (idx >= 0) {
       chunk.items[idx] = chunk.items[chunk.items.length - 1];

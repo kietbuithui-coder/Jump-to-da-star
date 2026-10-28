@@ -308,62 +308,37 @@ check('sky shelves are out of reach of a normal arc — and reachable with the l
   return `${checked} shelves, all >600px above the line and inside thermal reach`;
 });
 
-check('each of the four high-altitude tiers refills a boost and energy on ascent', () => {
-  let verified = 0;
-  const energyPerTier = ['orb', 'battery', 'super', 'battery'];
-  for (const seed of [1, 5, 11, 23]) {
-    const { game } = makeGame(seed);
-    const w = game.world;
-    w.ensure(w.startX + 130000);
-    const zones = [...w.chunks.values()].flatMap(c => c.zones)
-      .filter(z => z.id === 'hotair' && z.sky && z.upperTierCount === 4);
-    const items = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.upperTier);
-
-    for (const zone of zones) {
-      const anchorY = zone.y + zone.height / 2 - 160;
-      const matched = items.filter(it => it.anchorY != null
-        && Math.abs(it.anchorY - anchorY) < 0.01 && Math.abs(it.x - zone.x) <= 46);
-      assert(matched.length === 8, 'every high column must have 8 usable items');
-      for (let level = 1; level <= 4; level++) {
-        const shelf = matched.filter(it => it.upperTier === level);
-        assert(shelf.length === 2, 'missing upward tier ' + level);
-        const boost = shelf.find(it => it.id === 'boostStar');
-        const energy = shelf.find(it => it.id === energyPerTier[level - 1]);
-        assert(boost && energy, 'tier ' + level + ' must contain boost and energy');
-        assert(boost.x === zone.x, 'flight booster must sit on the ascent centreline');
-        assert(ITEM_DEFS[boost.id].boost >= 1, 'booster must actually replenish boost charges');
-        assert(ITEM_DEFS[energy.id].energy > 0, 'partner must actually replenish energy');
-        assert(Math.hypot(energy.x - boost.x, energy.y - boost.y)
-          < PHYS.collideRadius + ITEM_DEFS[energy.id].r * 0.9,
-          'straight ascent must collect the second item');
-        assert(Math.abs(energy.x - zone.x) <= 46, 'upper loot may not stretch horizontally');
-        assert(boost.y < anchorY - 620, 'stage must be above ordinary bounce height');
-        assert(boost.y >= zone.y - zone.height / 2 + 125, 'boost stage must remain in thermal reach');
-      }
-      for (let level = 2; level <= 4; level++) {
-        const prev = matched.find(it => it.upperTier === level - 1 && it.id === 'boostStar');
-        const next = matched.find(it => it.upperTier === level && it.id === 'boostStar');
-        assert(prev.y - next.y >= 195, 'stage heights must form separate vertical steps');
-      }
-      // Collect along the centre of a real column using the actual Game pickup
-      // method. Do this once per world to avoid exhausting the entire inventory.
-      if (zone === zones[0]) {
-        for (let level = 1; level <= 4; level++) {
-          const booster = matched.find(it => it.upperTier === level && it.id === 'boostStar');
-          game.player.x = zone.x;
-          game.player.y = booster.y;
-          game.player.boosts = 0;
-          game.player.energy = 0;
-          game.collectNearby(DT);
-          assert(game.player.boosts >= 1, 'tier ' + level + ' must restore at least 1 boost');
-          assert(game.player.energy > 0, 'tier ' + level + ' must restore energy');
-        }
-      }
-      verified++;
+check('random loot covers the map, thinning with altitude but never reaching zero', () => {
+  const w = new World(27);
+  const p = { x: w.startX + 1900, y: w.floorAt(w.startX + 1900) - 820 };
+  w.ensureAltitudeLoot(p);
+  const items = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.scatterLoot);
+  const counts = new Map();
+  for (const it of items) {
+    const key = it.chunk + ':' + it.altitudeBand;
+    counts.set(key, (counts.get(key) || 0) + 1);
+    assert(it.y < w.floorAt(it.x), 'loot under the floor');
+  }
+  const ci = w.chunkIndexAt(p.x);
+  for (let index = ci; index <= ci + 2; index++) {
+    for (const band of [0, 1, 2, 4, 7]) {
+      assert(counts.get(index + ':' + band) >= 1, 'empty loot cell ' + index + ':' + band);
     }
   }
-  assert(verified >= 12, 'expected many extended sky columns');
-  return verified + ' sky columns: 4 vertically reachable fuel stages each';
+  const at = band => [...counts.entries()].filter(([k]) => Number(k.split(':')[1]) === band)
+    .reduce((sum, [, n]) => sum + n, 0);
+  assert(at(0) > at(2) && at(2) > at(7), 'higher sky should be less crowded');
+  const count = items.length;
+  w.ensureAltitudeLoot(p);
+  assert([...w.chunks.values()].flatMap(c => c.items).filter(it => it.scatterLoot).length === count,
+    'duplicate loot on repeated generation');
+  const repeat = new World(27);
+  repeat.ensureAltitudeLoot(p);
+  const positions = world => [...world.chunks.values()].flatMap(c => c.items)
+    .filter(it => it.scatterLoot).map(it => [it.id, it.x, it.y]).sort((a, b) => a[1] - b[1]);
+  assert(JSON.stringify(positions(w)) === JSON.stringify(positions(repeat)),
+    'random map must be repeatable for the same seed');
+  return counts.size + ' populated altitude cells, deterministic thinning';
 });
 
 check('loot density falls with distance (measured over 3 seeds)', () => {
@@ -464,43 +439,23 @@ check('a pilot who touches nothing at all still gets a short, honest run', () =>
 });
 
 
-check('open sky keeps 4 support heights above an ascending pilot without hot-air zones', () => {
+check('very high sky still holds loot; cells recycle and collected items stay collected', () => {
   const w = new World(77);
-  const launch = { x: w.startX, y: LAUNCH.startY, vx: LAUNCH.vx, vy: LAUNCH.vy };
-  w.ensureSkySupport(launch);
-  assert(![...w.chunks.values()].some(c => c.items.some(it => it.airSupport)),
-    'the launch area must stay free of sky loot');
-  const p = { x: w.startX + 1300, y: -1750, vx: 950, vy: -1000 };
-  assert(w.zonesNear(p.x).every(z => !z.airSupport), 'unexpected extra thermal');
-  w.ensureSkySupport(p);
-  const supplies = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.airSupport);
-  const tiers = new Set(supplies.map(it => it.airTier));
-  assert(tiers.size === 4, 'four different heights must exist in empty sky');
-  for (const tier of tiers) {
-    const group = supplies.filter(it => it.airTier === tier && it.kind === 'pickup');
-    assert(group.length === 2, 'each altitude has two support pickups');
-    assert(group.some(it => it.id === 'boostStar'), 'each altitude restores a boost');
-    assert(group.some(it => ITEM_DEFS[it.id].energy > 0), 'each altitude restores energy');
-    const [a, b] = group;
-    assert(Math.abs(a.x - b.x) <= 32 && Math.abs(a.y - b.y) <= 18,
-      'loot must be clustered for vertical flight');
-  }
-  const before = supplies.length;
-  w.ensureSkySupport(p);
-  assert([...w.chunks.values()].flatMap(c => c.items).filter(it => it.airSupport).length === before,
-    'same position may not duplicate items');
-  for (let i = 0; i < 30; i++) {
-    p.y -= 240;
-    p.x += 95;
-    w.ensureSkySupport(p);
-    w.recycle(p.x);
-  }
-  const live = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.airSupport);
-  assert(live.some(it => it.airTier > Math.max(...tiers) + 20),
-    'new supplies must continue spawning during extreme ascent');
-  assert(w.airTierKeys.size < 80 && live.length < 80,
-    'open-sky supplies must be recycled on very high climbs');
-  return '4 open-air tiers, infinite-height extension, no duplicates, bounded memory';
+  const p = { x: w.startX + 1400, y: -1750 };
+  w.ensureAltitudeLoot(p);
+  const first = [...w.chunks.values()].flatMap(c => c.items).find(it => it.scatterLoot);
+  assert(first, 'no nearby random loot');
+  w.removeItem(first);
+  p.y -= 13000;
+  w.ensureAltitudeLoot(p);
+  const high = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.scatterLoot);
+  assert(high.some(it => it.altitudeBand > 25), 'no loot at extreme height');
+  assert(high.length < 300 && w.scatterBands.size < 90, 'altitude streaming memory is unbounded');
+  p.y += 13000;
+  w.ensureAltitudeLoot(p);
+  assert(![...w.chunks.values()].flatMap(c => c.items).some(it => it.scatterKey === first.scatterKey),
+    'collected loot respawned when reentering a cell');
+  return 'extreme-height items, bounded cells, no pickup farming';
 });
 
 /* ================================================================ 4. ITEMS */

@@ -453,6 +453,9 @@ export class Game {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
+    // Fill empty air above the real player, not only above a thermal shelf.
+    this.world.ensureSkySupport(p);
+
     // ---- pad collisions (one-way, shared with the generator's model)
     const pads = this.world.padsNear(p.x);
     const contact = padContact(p, prevX, prevY, PHYS.collideRadius, pads);

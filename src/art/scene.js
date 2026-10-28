@@ -75,7 +75,7 @@ export function renderScene(ctx, game, cssW, cssH, now, quality = 'balanced', op
         if (it.x < cam.x - cam.vw / 2 - 220 || it.x > cam.x + cam.vw / 2 + 400) continue;
         // New high-altitude tier sprites are cheap in world memory, but avoid
         // drawing them while far above/below the camera on mobile GPUs.
-        if (it.upperTier && Math.abs(it.y - cam.y) > cssH / (2 * Math.max(0.065, cam.zoom)) + 100) continue;
+        if ((it.upperTier || it.airSupport) && Math.abs(it.y - cam.y) > cssH / (2 * Math.max(0.065, cam.zoom)) + 100) continue;
         const def = ITEM_DEFS[it.id];
         if (!def) continue;
         const bob = Math.sin(t * 2 + (it.bob || 0)) * 8;

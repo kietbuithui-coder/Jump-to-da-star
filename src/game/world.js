@@ -72,6 +72,10 @@ export class World {
     this.lastPad = null;
     this.trace = [];
     this._lastRecycleCi = null;
+    // Open sky is a second, vertical stream; unlike route loot it follows
+    // actual climb altitude, not horizontal distance or special hot-air zones.
+    this.airTierKeys = new Map();
+    this.lastAirPrune = null;
     this._register({
       id: 'spring',
       kind: 'pad',
@@ -144,6 +148,68 @@ export class World {
     let guard = 0;
     while (this.generatedX < targetX && guard++ < 800) this._planHop();
     this._buildChunkDecor();
+  }
+
+  /**
+   * Place continued flight supplies in open sky as the pilot really ascends.
+   * Four future heights are seeded ahead of the player in each horizontal
+   * sector; new heights appear with further ascent (no vertical ceiling).
+   * No main RNG calls: the guaranteed reference pad route is untouched.
+   */
+  ensureSkySupport(player) {
+    if (!player || !Number.isFinite(player.x) || !Number.isFinite(player.y)) return;
+    if (LAUNCH.startY - player.y < 360 || this.floorAt(player.x) - player.y < 900 || player.vy > 180) return;
+    const gap = 240;
+    const sector = Math.floor((player.x - this.startX) / 900);
+    const first = Math.floor((LAUNCH.startY - player.y) / gap) + 1;
+    for (let offset = 0; offset < 4; offset++) {
+      const tier = first + offset;
+      if (tier <= 0) continue;
+      const key = sector + ':' + tier;
+      if (this.airTierKeys.has(key)) continue;
+      this.airTierKeys.set(key, { sector, tier });
+      const y = LAUNCH.startY - tier * gap;
+      const rise = Math.max(1, player.y - y);
+      const leadSeconds = Math.min(0.65, rise / Math.max(750, -player.vy));
+      // Place the ladder on the predicted rising path, not randomly far to
+      // the side. The second pickup also intersects a centred character.
+      const x = player.x + Math.max(0, player.vx) * leadSeconds;
+      const energy = ['orb', 'battery', 'super', 'battery'][tier % 4];
+      for (const [id, dx, dy] of [
+        ['boostStar', 0, 0],
+        [energy, tier % 2 ? 32 : -32, 18],
+      ]) {
+        this._register({
+          id, kind: 'pickup', x: x + dx, y: y + dy,
+          r: ITEM_DEFS[id].r, sky: true, airSupport: true,
+          airTier: tier, bob: tier % 6,
+        });
+      }
+      // Every second tier also has an automatic upward impulse so the
+      // ladder supports climbing rather than merely awarding points.
+      if (tier % 2 === 0) {
+        this._register({
+          id: 'jetGate', kind: 'gate', x, y: y + 82,
+          r: ITEM_DEFS.jetGate.r, angle: -0.2, bob: 0,
+          sky: true, airSupport: true, airTier: tier,
+        });
+      }
+    }
+    const marker = sector + ':' + Math.floor(first / 3);
+    if (marker !== this.lastAirPrune) {
+      this.lastAirPrune = marker;
+      const minTier = first - 10;
+      for (const [key, info] of this.airTierKeys) {
+        if (info.sector < sector - 4 || info.tier < minTier) this.airTierKeys.delete(key);
+      }
+      // On exceptionally long vertical ascents at one X, remove supplies
+      // thousands of pixels below the player, keeping Android memory bounded.
+      for (const chunk of this.chunks.values()) {
+        if (chunk.items.some(it => it.airSupport && it.airTier < minTier)) {
+          chunk.items = chunk.items.filter(it => !it.airSupport || it.airTier >= minTier);
+        }
+      }
+    }
   }
 
   _difficultyAt(x) {

@@ -463,6 +463,46 @@ check('a pilot who touches nothing at all still gets a short, honest run', () =>
   return `idle (no input) distances: ${rows.join(' / ')} m — ends when it runs out of luck`;
 });
 
+
+check('open sky keeps 4 support heights above an ascending pilot without hot-air zones', () => {
+  const w = new World(77);
+  const launch = { x: w.startX, y: LAUNCH.startY, vx: LAUNCH.vx, vy: LAUNCH.vy };
+  w.ensureSkySupport(launch);
+  assert(![...w.chunks.values()].some(c => c.items.some(it => it.airSupport)),
+    'the launch area must stay free of sky loot');
+  const p = { x: w.startX + 1300, y: -1750, vx: 950, vy: -1000 };
+  assert(w.zonesNear(p.x).every(z => !z.airSupport), 'unexpected extra thermal');
+  w.ensureSkySupport(p);
+  const supplies = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.airSupport);
+  const tiers = new Set(supplies.map(it => it.airTier));
+  assert(tiers.size === 4, 'four different heights must exist in empty sky');
+  for (const tier of tiers) {
+    const group = supplies.filter(it => it.airTier === tier && it.kind === 'pickup');
+    assert(group.length === 2, 'each altitude has two support pickups');
+    assert(group.some(it => it.id === 'boostStar'), 'each altitude restores a boost');
+    assert(group.some(it => ITEM_DEFS[it.id].energy > 0), 'each altitude restores energy');
+    const [a, b] = group;
+    assert(Math.abs(a.x - b.x) <= 32 && Math.abs(a.y - b.y) <= 18,
+      'loot must be clustered for vertical flight');
+  }
+  const before = supplies.length;
+  w.ensureSkySupport(p);
+  assert([...w.chunks.values()].flatMap(c => c.items).filter(it => it.airSupport).length === before,
+    'same position may not duplicate items');
+  for (let i = 0; i < 30; i++) {
+    p.y -= 240;
+    p.x += 95;
+    w.ensureSkySupport(p);
+    w.recycle(p.x);
+  }
+  const live = [...w.chunks.values()].flatMap(c => c.items).filter(it => it.airSupport);
+  assert(live.some(it => it.airTier > Math.max(...tiers) + 20),
+    'new supplies must continue spawning during extreme ascent');
+  assert(w.airTierKeys.size < 80 && live.length < 80,
+    'open-sky supplies must be recycled on very high climbs');
+  return '4 open-air tiers, infinite-height extension, no duplicates, bounded memory';
+});
+
 /* ================================================================ 4. ITEMS */
 group('items');
 
